@@ -1,0 +1,191 @@
+:root {
+  font-family: "Noto Sans SC", "Source Han Sans SC", sans-serif;
+  color: #2a2118;
+  background: radial-gradient(circle at top left, #f2e2c8, #e3d2b8 45%, #d8c3a2);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+a {
+  color: #4c2f0f;
+}
+
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.upload-page {
+  padding-top: 80px;
+}
+
+.panel {
+  background: rgba(255, 248, 237, 0.88);
+  border: 1px solid rgba(129, 92, 47, 0.25);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.topbar {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.control-panel .group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+input,
+button {
+  border-radius: 10px;
+  border: 1px solid #b28f5e;
+  padding: 8px 12px;
+}
+
+button {
+  background: #5e3a17;
+  color: #fff;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.source-preview {
+  max-width: 100%;
+  border-radius: 12px;
+  margin-top: 8px;
+}
+
+.crop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.crop-card {
+  border: 1px solid #d0b085;
+  border-radius: 12px;
+  padding: 10px;
+  background: #fff8ec;
+}
+
+.crop-card-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.crop-preview {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px dashed #c5a77a;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  overflow: hidden;
+}
+
+.crop-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.empty {
+  color: #8e6e44;
+}
+
+.meta {
+  font-size: 12px;
+  margin: 8px 0;
+  color: #5a4a32;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid #c4a57a;
+}
+
+.badge-succeeded,
+.badge-approved,
+.badge-ready_to_compose,
+.badge-done {
+  background: #def7df;
+}
+
+.badge-failed {
+  background: #ffd7d7;
+}
+
+.badge-running,
+.badge-generating,
+.badge-composing {
+  background: #fff1c9;
+}
+
+.compose-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+.compose-list img {
+  width: 100%;
+  border-radius: 10px;
+}
+
+.export-box {
+  display: flex;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.error {
+  margin-top: 10px;
+  color: #b31212;
+}
+
+.row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.job-box {
+  margin-top: 8px;
+}
+
+@media (max-width: 768px) {
+  .page {
+    padding: 12px;
+  }
+
+  .control-panel .group {
+    flex-wrap: wrap;
+  }
+}

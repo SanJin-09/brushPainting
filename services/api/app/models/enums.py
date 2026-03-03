@@ -1,0 +1,27 @@
+from enum import Enum
+
+
+class SessionStatus(str, Enum):
+    UPLOADED = "UPLOADED"
+    SEGMENTED = "SEGMENTED"
+    STYLE_LOCKED = "STYLE_LOCKED"
+    GENERATING = "GENERATING"
+    REVIEWING = "REVIEWING"
+    READY_TO_COMPOSE = "READY_TO_COMPOSE"
+    COMPOSING = "COMPOSING"
+    DONE = "DONE"
+    FAILED = "FAILED"
+
+
+class CropStatus(str, Enum):
+    PENDING = "PENDING"
+    GENERATED = "GENERATED"
+    APPROVED = "APPROVED"
+
+
+class JobStatus(str, Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    RETRYING = "RETRYING"

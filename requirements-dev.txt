@@ -1,0 +1,4 @@
+-r services/api/requirements.txt
+-r services/worker/requirements.txt
+-r services/model_runtime/requirements.txt
+pytest==8.3.5
