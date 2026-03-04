@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: gongbi
       POSTGRES_PASSWORD: gongbi
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../sql:/docker-entrypoint-initdb.d
@@ -16,7 +16,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "${REDIS_HOST_PORT:-6380}:6379"
 
   minio:
     image: minio/minio:latest
@@ -26,8 +26,8 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_API_HOST_PORT:-9010}:9000"
+      - "${MINIO_CONSOLE_HOST_PORT:-9011}:9001"
     volumes:
       - minio_data:/data
 
@@ -59,7 +59,6 @@ services:
     depends_on:
       - postgres
       - redis
-    gpus: all
     volumes:
       - ../../runtime:/app/runtime
       - ../../configs:/app/configs

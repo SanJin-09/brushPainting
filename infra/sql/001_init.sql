@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS sessions (
-  id UUID PRIMARY KEY,
+  id TEXT PRIMARY KEY,
   source_image_url TEXT NOT NULL,
   style_id TEXT,
   status TEXT NOT NULL,
@@ -9,8 +9,8 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 
 CREATE TABLE IF NOT EXISTS crops (
-  id UUID PRIMARY KEY,
-  session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   bbox_x INTEGER NOT NULL,
   bbox_y INTEGER NOT NULL,
   bbox_w INTEGER NOT NULL,
@@ -21,8 +21,8 @@ CREATE TABLE IF NOT EXISTS crops (
 );
 
 CREATE TABLE IF NOT EXISTS crop_versions (
-  id UUID PRIMARY KEY,
-  crop_id UUID NOT NULL REFERENCES crops(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY,
+  crop_id TEXT NOT NULL REFERENCES crops(id) ON DELETE CASCADE,
   version_no INTEGER NOT NULL,
   image_url TEXT NOT NULL,
   seed BIGINT NOT NULL,
@@ -33,8 +33,8 @@ CREATE TABLE IF NOT EXISTS crop_versions (
 );
 
 CREATE TABLE IF NOT EXISTS compose_results (
-  id UUID PRIMARY KEY,
-  session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   image_url TEXT NOT NULL,
   seam_pass_count INTEGER NOT NULL DEFAULT 1,
   quality_score DOUBLE PRECISION,
@@ -42,9 +42,9 @@ CREATE TABLE IF NOT EXISTS compose_results (
 );
 
 CREATE TABLE IF NOT EXISTS jobs (
-  id UUID PRIMARY KEY,
+  id TEXT PRIMARY KEY,
   type TEXT NOT NULL,
-  session_id UUID REFERENCES sessions(id) ON DELETE SET NULL,
+  session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
   payload_json JSONB,
   status TEXT NOT NULL,
   error_message TEXT,

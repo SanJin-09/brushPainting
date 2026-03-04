@@ -27,11 +27,27 @@ cp .env.example .env
 docker compose -f infra/docker/docker-compose.yml up --build
 ```
 
+若你之前已经跑过旧版本并保留了 postgres volume，建议先重建一次数据库：
+
+```bash
+docker compose -f infra/docker/docker-compose.yml down -v
+docker compose -f infra/docker/docker-compose.yml up --build -d
+```
+
+Linux + NVIDIA GPU 推理节点可使用：
+
+```bash
+docker compose -f infra/docker/docker-compose.yml -f infra/docker/docker-compose.gpu.yml up --build
+```
+
 服务默认端口：
 
 - API: `http://localhost:8000`
 - Web: `http://localhost:5173`
-- MinIO Console: `http://localhost:9001`
+- PostgreSQL (host): `localhost:5433`
+- Redis (host): `localhost:6380`
+- MinIO API: `http://localhost:9010`
+- MinIO Console: `http://localhost:9011`
 
 ## 本地开发（不跑 GPU 推理）
 
@@ -55,6 +71,12 @@ uvicorn services.api.app.main:app --reload --port 8000
 - `POST /api/v1/sessions/{id}/export`
 - `GET /api/v1/sessions/{id}`
 - `GET /api/v1/jobs/{job_id}`
+
+## Mock E2E 验收
+
+```bash
+./scripts/e2e_mock.sh
+```
 
 ## 说明
 
