@@ -40,6 +40,28 @@ Linux + NVIDIA GPU 推理节点可使用：
 docker compose -f infra/docker/docker-compose.yml -f infra/docker/docker-compose.gpu.yml up --build
 ```
 
+默认会把宿主机模型目录挂载到容器 `/models`：
+
+- 宿主机路径由 `MODEL_HOST_PATH` 控制（默认 `./runtime/models`）
+- `.env` 中推理路径默认：
+  - `SDXL_BASE_MODEL_PATH=/models/sdxl/base`
+  - `SDXL_INPAINT_MODEL_PATH=/models/sdxl/inpaint`
+  - `SDXL_CONTROLNET_CANNY_PATH=/models/controlnet/sdxl_canny`
+  - `SDXL_LORA_PATH=/models/lora/gongbi_lora_v1.safetensors`
+
+建议目录结构：
+
+```text
+runtime/models/
+├── sdxl/
+│   ├── base/
+│   └── inpaint/
+├── controlnet/
+│   └── sdxl_canny/
+└── lora/
+    └── gongbi_lora_v1.safetensors
+```
+
 服务默认端口：
 
 - API: `http://localhost:8000`
@@ -80,7 +102,7 @@ uvicorn services.api.app.main:app --reload --port 8000
 
 ## 说明
 
-当前仓库中的模型运行时提供了可替换的默认实现（PIL/OpenCV 风格化与边界修复），并预留了 Diffusers + LoRA + ControlNet 接口。切换到真实 SDXL 推理只需在 `services/model_runtime/model_runtime/*.py` 中替换实现。
+当前仓库支持两套后端：
 
-- 默认 `MODEL_BACKEND=mock`（可直接跑通流程）
-- 若切换 `MODEL_BACKEND=diffusers`，请补齐 `torch/diffusers/transformers/accelerate/safetensors` 与模型权重，并完成 `diffusers_backend.py` 中的两个推理函数
+- `MODEL_BACKEND=mock`：PIL/OpenCV 的轻量模拟推理（便于开发联调）
+- `MODEL_BACKEND=diffusers`：本地 SDXL + LoRA + ControlNet + Inpaint 推理（需挂载模型权重）

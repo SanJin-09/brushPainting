@@ -18,6 +18,9 @@ lora:
   path: /models/lora/gongbi_lora_v1.safetensors
 controlnet:
   canny_path: /models/controlnet/sdxl_canny
+models:
+  sdxl_base_path: /models/sdxl/base
+  sdxl_inpaint_path: /models/sdxl/inpaint
 metadata:
   version: 1
   locked: true

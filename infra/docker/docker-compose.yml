@@ -46,6 +46,7 @@ services:
       - ../../configs:/app/configs
       - ../../services:/app/services
       - ../../tests:/app/tests
+      - ${MODEL_HOST_PATH:-../../runtime/models}:/models:ro
     ports:
       - "8000:8000"
 
@@ -63,6 +64,7 @@ services:
       - ../../runtime:/app/runtime
       - ../../configs:/app/configs
       - ../../services:/app/services
+      - ${MODEL_HOST_PATH:-../../runtime/models}:/models:ro
 
   web:
     build:
