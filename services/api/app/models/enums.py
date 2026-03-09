@@ -3,20 +3,17 @@ from enum import Enum
 
 class SessionStatus(str, Enum):
     UPLOADED = "UPLOADED"
-    SEGMENTED = "SEGMENTED"
     STYLE_LOCKED = "STYLE_LOCKED"
-    GENERATING = "GENERATING"
+    RENDERING = "RENDERING"
     REVIEWING = "REVIEWING"
-    READY_TO_COMPOSE = "READY_TO_COMPOSE"
-    COMPOSING = "COMPOSING"
+    EDITING = "EDITING"
     DONE = "DONE"
     FAILED = "FAILED"
 
 
-class CropStatus(str, Enum):
-    PENDING = "PENDING"
-    GENERATED = "GENERATED"
-    APPROVED = "APPROVED"
+class ImageVersionKind(str, Enum):
+    FULL_RENDER = "FULL_RENDER"
+    LOCAL_EDIT = "LOCAL_EDIT"
 
 
 class JobStatus(str, Enum):

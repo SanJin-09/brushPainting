@@ -3,10 +3,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from services.api.app.models.enums import CropStatus, JobStatus, SessionStatus
+from services.api.app.models.enums import ImageVersionKind, JobStatus, SessionStatus
 
 
 def utcnow() -> datetime:
@@ -28,55 +28,47 @@ class Session(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
-    crops: Mapped[list["Crop"]] = relationship(back_populates="session", cascade="all, delete-orphan")
-    compose_results: Mapped[list["ComposeResult"]] = relationship(back_populates="session", cascade="all, delete-orphan")
+    versions: Mapped[list["ImageVersion"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="ImageVersion.created_at",
+    )
     jobs: Mapped[list["Job"]] = relationship(back_populates="session")
 
+    @property
+    def current_version(self) -> ImageVersion | None:
+        for version in reversed(self.versions):
+            if version.is_current:
+                return version
+        return None
 
-class Crop(Base):
-    __tablename__ = "crops"
+    @property
+    def current_version_id(self) -> str | None:
+        current = self.current_version
+        return current.id if current else None
+
+
+class ImageVersion(Base):
+    __tablename__ = "image_versions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id", ondelete="CASCADE"), index=True)
-    bbox_x: Mapped[int] = mapped_column(Integer, nullable=False)
-    bbox_y: Mapped[int] = mapped_column(Integer, nullable=False)
-    bbox_w: Mapped[int] = mapped_column(Integer, nullable=False)
-    bbox_h: Mapped[int] = mapped_column(Integer, nullable=False)
-    mask_rle: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[str] = mapped_column(String(32), default=CropStatus.PENDING.value, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
-
-    session: Mapped[Session] = relationship(back_populates="crops")
-    versions: Mapped[list["CropVersion"]] = relationship(back_populates="crop", cascade="all, delete-orphan", order_by="CropVersion.version_no")
-
-
-class CropVersion(Base):
-    __tablename__ = "crop_versions"
-    __table_args__ = (UniqueConstraint("crop_id", "version_no", name="uq_crop_version"),)
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    crop_id: Mapped[str] = mapped_column(ForeignKey("crops.id", ondelete="CASCADE"), index=True)
-    version_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    parent_version_id: Mapped[str | None] = mapped_column(ForeignKey("image_versions.id", ondelete="SET NULL"), nullable=True)
+    kind: Mapped[str] = mapped_column(String(32), default=ImageVersionKind.FULL_RENDER.value, nullable=False)
     image_url: Mapped[str] = mapped_column(Text, nullable=False)
     seed: Mapped[int] = mapped_column(nullable=False)
     params_hash: Mapped[str] = mapped_column(String(128), nullable=False)
-    approved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    prompt_override: Mapped[str | None] = mapped_column(Text, nullable=True)
+    mask_rle: Mapped[str | None] = mapped_column(Text, nullable=True)
+    bbox_x: Mapped[int | None] = mapped_column(nullable=True)
+    bbox_y: Mapped[int | None] = mapped_column(nullable=True)
+    bbox_w: Mapped[int | None] = mapped_column(nullable=True)
+    bbox_h: Mapped[int | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
-    crop: Mapped[Crop] = relationship(back_populates="versions")
-
-
-class ComposeResult(Base):
-    __tablename__ = "compose_results"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id", ondelete="CASCADE"), index=True)
-    image_url: Mapped[str] = mapped_column(Text, nullable=False)
-    seam_pass_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    quality_score: Mapped[float | None] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
-
-    session: Mapped[Session] = relationship(back_populates="compose_results")
+    session: Mapped[Session] = relationship(back_populates="versions")
+    parent_version: Mapped["ImageVersion | None"] = relationship(remote_side="ImageVersion.id")
 
 
 class Job(Base):

@@ -11,7 +11,7 @@ from services.api.app.models import Base
 
 settings = get_settings()
 
-app = FastAPI(title="Gongbi Collage API", version="0.1.0")
+app = FastAPI(title="Gongbi Repaint API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,

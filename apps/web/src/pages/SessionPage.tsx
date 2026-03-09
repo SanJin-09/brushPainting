@@ -1,32 +1,60 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import CropCard from "../components/CropCard";
+import MaskEditor, { type MaskEditorHandle } from "../components/MaskEditor";
 import StatusBadge from "../components/StatusBadge";
 import {
-  approveCrop,
-  composeSession,
+  adoptVersion,
+  createEdit,
   exportSession,
-  generateCrops,
   getJob,
   getSession,
   lockStyle,
-  regenerateCrop,
-  resetGeneration,
-  segmentSession
+  maskAssist,
+  renderSession
 } from "../lib/api";
+import type { ImageVersion, MaskAssistResult } from "../lib/types";
 import { useAppStore } from "../store";
+
+function sortVersions(versions: ImageVersion[]) {
+  return [...versions].sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
+}
 
 export default function SessionPage() {
   const { id } = useParams();
   const { session, setSession, busy, setBusy, lastJob, setLastJob, error, setError } = useAppStore();
+  const editorRef = useRef<MaskEditorHandle | null>(null);
 
   const [seed, setSeed] = useState<number | undefined>(undefined);
   const [styleId, setStyleId] = useState("gongbi_default");
+  const [promptOverride, setPromptOverride] = useState("");
+  const [assistResult, setAssistResult] = useState<MaskAssistResult | null>(null);
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [exportInfo, setExportInfo] = useState<{ final_image_url: string; manifest_url: string } | null>(null);
 
-  const allApproved = useMemo(() => {
-    return session?.crops.length ? session.crops.every((x) => x.status === "APPROVED") : false;
-  }, [session]);
+  const orderedVersions = useMemo(() => sortVersions(session?.versions ?? []), [session?.versions]);
+  const currentVersion = useMemo(
+    () => orderedVersions.find((version) => version.is_current) ?? null,
+    [orderedVersions]
+  );
+  const selectedVersion = useMemo(
+    () => orderedVersions.find((version) => version.id === selectedVersionId) ?? currentVersion,
+    [currentVersion, orderedVersions, selectedVersionId]
+  );
+
+  useEffect(() => {
+    if (session?.style_id) {
+      setStyleId(session.style_id);
+    }
+  }, [session?.style_id]);
+
+  useEffect(() => {
+    if (currentVersion && !selectedVersionId) {
+      setSelectedVersionId(currentVersion.id);
+    }
+    if (selectedVersionId && !orderedVersions.some((version) => version.id === selectedVersionId)) {
+      setSelectedVersionId(currentVersion?.id ?? null);
+    }
+  }, [currentVersion, orderedVersions, selectedVersionId]);
 
   const refresh = async () => {
     if (!id) {
@@ -72,8 +100,11 @@ export default function SessionPage() {
     refresh();
   }, [id]);
 
+  const editableImageUrl = currentVersion?.image_url ?? session?.source_image_url ?? "";
+  const selectedIsCurrent = !selectedVersion || selectedVersion.id === currentVersion?.id;
+
   return (
-    <div className="page">
+    <div className="page workspace-page">
       <div className="topbar">
         <Link to="/">返回上传</Link>
         {session ? <Link to={`/sessions/${session.id}/export`}>前往导出页</Link> : null}
@@ -93,33 +124,14 @@ export default function SessionPage() {
               <span>风格：</span>
               <strong>{session.style_id ?? "未锁定"}</strong>
             </div>
-            <img src={session.source_image_url} alt="source" className="source-preview" />
+            <div className="row">
+              <span>当前版本：</span>
+              <strong>{session.current_version_id ? session.current_version_id.slice(0, 8) : "暂无"}</strong>
+            </div>
           </section>
 
           <section className="panel control-panel">
             <h3>流程控制</h3>
-            <div className="group">
-              <label>Seed：</label>
-              <input
-                type="number"
-                value={seed ?? ""}
-                onChange={(e) => setSeed(e.target.value ? Number(e.target.value) : undefined)}
-                placeholder="可选"
-              />
-              <button
-                disabled={busy}
-                onClick={() =>
-                  withBusy(async () => {
-                    const job = await segmentSession(session.id, seed, 6);
-                    setLastJob(job);
-                    await pollJob(job.id);
-                  })
-                }
-              >
-                随机分割
-              </button>
-            </div>
-
             <div className="group">
               <label>风格ID：</label>
               <input value={styleId} onChange={(e) => setStyleId(e.target.value)} />
@@ -136,45 +148,93 @@ export default function SessionPage() {
             </div>
 
             <div className="group">
+              <label>Seed：</label>
+              <input
+                type="number"
+                value={seed ?? ""}
+                onChange={(e) => setSeed(e.target.value ? Number(e.target.value) : undefined)}
+                placeholder="可选"
+              />
               <button
-                disabled={busy || !session.style_id || session.crops.length === 0}
+                disabled={busy || !session.style_id}
                 onClick={() =>
                   withBusy(async () => {
-                    const job = await generateCrops(session.id);
+                    const job = await renderSession(session.id, seed);
                     setLastJob(job);
                     await pollJob(job.id);
                   })
                 }
               >
-                批量生成子图
+                {currentVersion ? "重新整图生成" : "生成整图"}
               </button>
+            </div>
 
+            <div className="group">
               <button
-                disabled={busy || session.crops.length === 0}
-                onClick={() =>
-                  withBusy(async () => {
-                    await resetGeneration(session.id);
-                  })
-                }
+                disabled={busy || !currentVersion}
+                onClick={() => {
+                  editorRef.current?.clear();
+                  setAssistResult(null);
+                }}
               >
-                重置生成
+                清空选区
               </button>
 
               <button
-                disabled={busy || !allApproved}
+                disabled={busy || !currentVersion}
+                onClick={async () => {
+                  if (!currentVersion || !id) {
+                    return;
+                  }
+                  const maskRle = editorRef.current?.exportMaskRle();
+                  if (!maskRle) {
+                    setError("请先画出局部选区");
+                    return;
+                  }
+                  await withBusy(async () => {
+                    const result = await maskAssist(id, maskRle);
+                    setAssistResult(result);
+                    editorRef.current?.replaceMask(result.mask_rle);
+                  });
+                }}
+              >
+                吸附选区
+              </button>
+            </div>
+
+            <div className="group">
+              <label>局部指令：</label>
+              <input
+                value={promptOverride}
+                onChange={(e) => setPromptOverride(e.target.value)}
+                placeholder="可选，例如：花瓣颜色更淡"
+              />
+              <button
+                disabled={busy || !currentVersion || !assistResult}
                 onClick={() =>
                   withBusy(async () => {
-                    const job = await composeSession(session.id);
+                    const job = await createEdit(session.id, {
+                      mask_rle: assistResult.mask_rle,
+                      bbox_x: assistResult.bbox_x,
+                      bbox_y: assistResult.bbox_y,
+                      bbox_w: assistResult.bbox_w,
+                      bbox_h: assistResult.bbox_h,
+                      seed,
+                      prompt_override: promptOverride || undefined
+                    });
                     setLastJob(job);
                     await pollJob(job.id);
+                    setAssistResult(null);
+                    editorRef.current?.clear();
+                    setPromptOverride("");
                   })
                 }
               >
-                全部通过后合成
+                生成局部候选
               </button>
 
               <button
-                disabled={busy || session.compose_results.length === 0}
+                disabled={busy || !currentVersion}
                 onClick={() =>
                   withBusy(async () => {
                     const result = await exportSession(session.id);
@@ -182,9 +242,15 @@ export default function SessionPage() {
                   })
                 }
               >
-                导出
+                导出当前版本
               </button>
             </div>
+
+            {assistResult ? (
+              <div className="selection-meta">
+                当前精修选区 bbox: ({assistResult.bbox_x}, {assistResult.bbox_y}, {assistResult.bbox_w}, {assistResult.bbox_h})
+              </div>
+            ) : null}
 
             {lastJob ? (
               <div className="job-box">
@@ -192,58 +258,107 @@ export default function SessionPage() {
                 {lastJob.error_message ? <div className="error">{lastJob.error_message}</div> : null}
               </div>
             ) : null}
+
+            {exportInfo ? (
+              <div className="export-box">
+                <a href={exportInfo.final_image_url} target="_blank" rel="noreferrer">
+                  打开当前导出图片
+                </a>
+                <a href={exportInfo.manifest_url} target="_blank" rel="noreferrer">
+                  打开 manifest
+                </a>
+              </div>
+            ) : null}
           </section>
 
-          <section className="panel">
-            <h3>子图审核</h3>
-            <div className="crop-grid">
-              {session.crops.map((crop) => (
-                <CropCard
-                  key={crop.id}
-                  crop={crop}
-                  loading={busy}
-                  onRegenerate={(cropId) =>
-                    withBusy(async () => {
-                      const job = await regenerateCrop(cropId);
-                      setLastJob(job);
-                      await pollJob(job.id);
-                    })
-                  }
-                  onApprove={(cropId) =>
-                    withBusy(async () => {
-                      const updated = await approveCrop(cropId);
-                      setSession(updated);
-                    })
-                  }
+          <section className="workspace-grid">
+            <div className="panel">
+              <h3>局部编辑画布</h3>
+              {editableImageUrl ? (
+                <MaskEditor
+                  key={editableImageUrl}
+                  ref={editorRef}
+                  imageUrl={editableImageUrl}
+                  disabled={!currentVersion || busy}
                 />
-              ))}
+              ) : (
+                <div className="empty">先生成整图，再进行局部编辑。</div>
+              )}
+            </div>
+
+            <div className="panel">
+              <h3>版本预览</h3>
+              <div className="preview-stack">
+                {currentVersion ? (
+                  <figure>
+                    <img src={currentVersion.image_url} alt="current-version" className="preview-image" />
+                    <figcaption>当前版本</figcaption>
+                  </figure>
+                ) : (
+                  <figure>
+                    <img src={session.source_image_url} alt="source-reference" className="preview-image" />
+                    <figcaption>原图参考</figcaption>
+                  </figure>
+                )}
+
+                {!selectedIsCurrent && selectedVersion ? (
+                  <figure>
+                    <img src={selectedVersion.image_url} alt="selected-candidate" className="preview-image" />
+                    <figcaption>候选预览</figcaption>
+                  </figure>
+                ) : null}
+
+                <figure>
+                  <img src={session.source_image_url} alt="source" className="preview-image" />
+                  <figcaption>原图</figcaption>
+                </figure>
+              </div>
             </div>
           </section>
 
           <section className="panel">
-            <h3>合成结果</h3>
-            {session.compose_results.length > 0 ? (
-              <div className="compose-list">
-                {session.compose_results.map((item) => (
-                  <figure key={item.id}>
-                    <img src={item.image_url} alt="compose" />
-                    <figcaption>{item.created_at}</figcaption>
-                  </figure>
+            <h3>版本列表</h3>
+            {orderedVersions.length === 0 ? (
+              <div className="empty">暂无版本。先锁定风格并生成整图。</div>
+            ) : (
+              <div className="version-grid">
+                {orderedVersions.map((version) => (
+                  <div
+                    key={version.id}
+                    className={`version-card${version.is_current ? " is-current" : ""}${selectedVersionId === version.id ? " is-selected" : ""}`}
+                  >
+                    <img src={version.image_url} alt={version.id} />
+                    <div className="version-card-header">
+                      <strong>{version.kind === "FULL_RENDER" ? "整图" : "局部"}</strong>
+                      {version.is_current ? <StatusBadge status="CURRENT" /> : null}
+                    </div>
+                    <div className="meta">
+                      <div>id: {version.id.slice(0, 8)}</div>
+                      <div>seed: {version.seed}</div>
+                      <div>时间: {new Date(version.created_at).toLocaleString()}</div>
+                      {version.prompt_override ? <div>指令: {version.prompt_override}</div> : null}
+                    </div>
+                    <div className="actions">
+                      <button disabled={busy} onClick={() => setSelectedVersionId(version.id)}>
+                        预览
+                      </button>
+                      <button
+                        disabled={busy || version.is_current}
+                        onClick={() =>
+                          withBusy(async () => {
+                            const updated = await adoptVersion(session.id, version.id);
+                            setSession(updated);
+                            setSelectedVersionId(version.id);
+                          })
+                        }
+                      >
+                        设为当前
+                      </button>
+                    </div>
+                  </div>
                 ))}
               </div>
-            ) : (
-              <div>暂无合成结果</div>
             )}
-            {exportInfo ? (
-              <div className="export-box">
-                <a href={exportInfo.final_image_url} target="_blank" rel="noreferrer">
-                  查看最终图
-                </a>
-                <a href={exportInfo.manifest_url} target="_blank" rel="noreferrer">
-                  查看 manifest
-                </a>
-              </div>
-            ) : null}
           </section>
         </>
       )}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { exportSession, getSession } from "../lib/api";
 import type { SessionDetail } from "../lib/types";
@@ -19,9 +19,10 @@ export default function ExportPage() {
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "加载失败"));
   }, [id]);
 
-  const latest = session?.compose_results.length
-    ? [...session.compose_results].sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0]
-    : null;
+  const currentVersion = useMemo(
+    () => session?.versions.find((version) => version.is_current) ?? null,
+    [session?.versions]
+  );
 
   return (
     <div className="page">
@@ -33,11 +34,11 @@ export default function ExportPage() {
         <h2>导出中心</h2>
         {session ? <div>会话：{session.id}</div> : <div>加载中...</div>}
 
-        {latest ? (
+        {currentVersion ? (
           <div className="compose-list">
             <figure>
-              <img src={latest.image_url} alt="final" />
-              <figcaption>最新合成结果</figcaption>
+              <img src={currentVersion.image_url} alt="current-version" />
+              <figcaption>当前版本</figcaption>
             </figure>
           </div>
         ) : (
@@ -46,7 +47,7 @@ export default function ExportPage() {
 
         <div className="group" style={{ marginTop: 12 }}>
           <button
-            disabled={busy || !id || !latest}
+            disabled={busy || !id || !currentVersion}
             onClick={async () => {
               if (!id) {
                 return;
@@ -66,9 +67,9 @@ export default function ExportPage() {
             {busy ? "导出中..." : "生成导出文件"}
           </button>
 
-          {latest ? (
-            <a href={latest.image_url} target="_blank" rel="noreferrer">
-              打开最终图片
+          {currentVersion ? (
+            <a href={currentVersion.image_url} target="_blank" rel="noreferrer">
+              打开当前图片
             </a>
           ) : null}
           {manifestUrl ? (

@@ -1,10 +1,9 @@
-from model_runtime.composer import compose_with_seam_refine
-from model_runtime.segmenter import SegmentItem, segment_image
-from model_runtime.stylizer import style_crop
+from model_runtime.mask_assist import MaskAssistResult, refine_mask
+from model_runtime.stylizer import inpaint_region, style_image
 
 __all__ = [
-    "SegmentItem",
-    "segment_image",
-    "style_crop",
-    "compose_with_seam_refine",
+    "MaskAssistResult",
+    "refine_mask",
+    "style_image",
+    "inpaint_region",
 ]

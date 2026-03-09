@@ -1,12 +1,11 @@
 from services.api.app.schemas.job import JobRead
 from services.api.app.schemas.session import (
-    ComposeRequest,
-    CropRead,
-    CropVersionRead,
+    EditRequest,
     ExportResponse,
-    GenerateRequest,
-    RegenerateRequest,
-    SegmentRequest,
+    ImageVersionRead,
+    MaskAssistRequest,
+    MaskAssistResponse,
+    RenderRequest,
     SessionCreateResponse,
     SessionRead,
     StyleLockRequest,
@@ -14,14 +13,13 @@ from services.api.app.schemas.session import (
 
 __all__ = [
     "SessionCreateResponse",
-    "SegmentRequest",
     "StyleLockRequest",
-    "GenerateRequest",
-    "RegenerateRequest",
-    "ComposeRequest",
+    "RenderRequest",
+    "MaskAssistRequest",
+    "MaskAssistResponse",
+    "EditRequest",
     "ExportResponse",
     "SessionRead",
-    "CropRead",
-    "CropVersionRead",
+    "ImageVersionRead",
     "JobRead",
 ]

@@ -1,8 +1,10 @@
 import axios from "axios";
-import type { Job, SessionDetail } from "./types";
+import type { Job, MaskAssistResult, SessionDetail } from "./types";
+
+const API_BASE = (import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api/v1").replace(/\/+$/, "");
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api/v1"
+  baseURL: API_BASE
 });
 
 export async function createSession(file: File) {
@@ -19,38 +21,39 @@ export async function getSession(sessionId: string) {
   return data;
 }
 
-export async function segmentSession(sessionId: string, seed?: number, cropCount = 6) {
-  const { data } = await api.post<Job>(`/sessions/${sessionId}/segment`, { seed, crop_count: cropCount });
-  return data;
-}
-
 export async function lockStyle(sessionId: string, styleId: string) {
   const { data } = await api.post<SessionDetail>(`/sessions/${sessionId}/style/lock`, { style_id: styleId });
   return data;
 }
 
-export async function generateCrops(sessionId: string) {
-  const { data } = await api.post<Job>(`/sessions/${sessionId}/crops/generate`, { force_regenerate_missing: true });
+export async function renderSession(sessionId: string, seed?: number) {
+  const { data } = await api.post<Job>(`/sessions/${sessionId}/render`, { seed });
   return data;
 }
 
-export async function resetGeneration(sessionId: string) {
-  const { data } = await api.post<SessionDetail>(`/sessions/${sessionId}/reset-generation`, {});
+export async function maskAssist(sessionId: string, maskRle: string) {
+  const { data } = await api.post<MaskAssistResult>(`/sessions/${sessionId}/mask-assist`, { mask_rle: maskRle });
   return data;
 }
 
-export async function regenerateCrop(cropId: string, seed?: number) {
-  const { data } = await api.post<Job>(`/crops/${cropId}/regenerate`, { seed });
+export async function createEdit(
+  sessionId: string,
+  payload: {
+    mask_rle: string;
+    bbox_x: number;
+    bbox_y: number;
+    bbox_w: number;
+    bbox_h: number;
+    seed?: number;
+    prompt_override?: string;
+  }
+) {
+  const { data } = await api.post<Job>(`/sessions/${sessionId}/edits`, payload);
   return data;
 }
 
-export async function approveCrop(cropId: string) {
-  const { data } = await api.post<SessionDetail>(`/crops/${cropId}/approve`, {});
-  return data;
-}
-
-export async function composeSession(sessionId: string) {
-  const { data } = await api.post<Job>(`/sessions/${sessionId}/compose`, { seam_pass_count: 1 });
+export async function adoptVersion(sessionId: string, versionId: string) {
+  const { data } = await api.post<SessionDetail>(`/sessions/${sessionId}/versions/${versionId}/adopt`, {});
   return data;
 }
 

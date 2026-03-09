@@ -9,7 +9,6 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from model_runtime.rle import decode_mask_rle
 from model_runtime.style_config import StyleConfigError, load_style_config
 
 
@@ -319,38 +318,18 @@ def _inpaint_runtime():
     return pipe, lora_fused, lora_scale, prompts, torch
 
 
-def _paste_rgba(canvas: Image.Image, layer: Any) -> None:
-    layer_img = layer.image.convert("RGBA").resize((layer.bbox_w, layer.bbox_h), Image.Resampling.LANCZOS)
-    canvas.alpha_composite(layer_img, (layer.bbox_x, layer.bbox_y))
+def _soft_blend(base_patch: np.ndarray, edit_patch: np.ndarray, mask_patch: np.ndarray, *, feather: int) -> np.ndarray:
+    alpha = (mask_patch.astype(np.float32) > 0).astype(np.float32)
+    if feather > 0:
+        ksize = feather * 2 + 1
+        alpha = cv2.GaussianBlur(alpha, (ksize, ksize), sigmaX=max(feather / 2, 1), sigmaY=max(feather / 2, 1))
+        alpha = np.clip(alpha, 0.0, 1.0)
+    alpha3 = alpha[:, :, None]
+    return np.clip(edit_patch * alpha3 + base_patch * (1.0 - alpha3), 0, 255).astype(np.uint8)
 
 
-def _build_boundary_band(height: int, width: int, masks: list[np.ndarray]) -> np.ndarray:
-    full = np.zeros((height, width), dtype=np.uint8)
-    for mask in masks:
-        full = np.maximum(full, mask.astype(np.uint8))
-
-    dilated = cv2.dilate(full, np.ones((32, 32), np.uint8), iterations=1)
-    eroded = cv2.erode(full, np.ones((16, 16), np.uint8), iterations=1)
-    band = cv2.subtract(dilated, eroded)
-    return (band > 0).astype(np.uint8)
-
-
-def _bbox_from_mask(mask: np.ndarray, pad: int = 64) -> tuple[int, int, int, int] | None:
-    ys, xs = np.where(mask > 0)
-    if xs.size == 0 or ys.size == 0:
-        return None
-
-    h, w = mask.shape
-    x0 = max(0, int(xs.min()) - pad)
-    y0 = max(0, int(ys.min()) - pad)
-    x1 = min(w, int(xs.max()) + 1 + pad)
-    y1 = min(h, int(ys.max()) + 1 + pad)
-    return x0, y0, x1, y1
-
-
-def style_crop_diffusers(
-    crop_image: Image.Image,
-    crop_mask,
+def style_image_diffusers(
+    source_image: Image.Image,
     *,
     seed: int,
     controlnet_weight: float,
@@ -358,9 +337,8 @@ def style_crop_diffusers(
     pipe, lora_fused, lora_scale, prompts, torch_module = _style_runtime()
     positive_prompt, negative_prompt = prompts
 
-    original_size = crop_image.size
-    image_rgb = crop_image.convert("RGB")
-    mask_np = (np.array(crop_mask).astype(np.uint8) > 0).astype(np.uint8)
+    original_size = source_image.size
+    image_rgb = source_image.convert("RGB")
 
     target_long = _env_int("SDXL_SIZE", 1024)
     model_input, _ = _resize_pair_for_model(
@@ -386,79 +364,75 @@ def style_crop_diffusers(
         kwargs["cross_attention_kwargs"] = {"scale": lora_scale}
 
     result = pipe(**kwargs).images[0].convert("RGB")
-    result = result.resize(original_size, Image.Resampling.LANCZOS)
-
-    if mask_np.shape[0] != original_size[1] or mask_np.shape[1] != original_size[0]:
-        mask_np = cv2.resize(mask_np, original_size, interpolation=cv2.INTER_NEAREST)
-    alpha = (mask_np > 0).astype(np.uint8) * 255
-
-    rgba = np.array(result.convert("RGBA"))
-    rgba[..., 3] = alpha
-    return Image.fromarray(rgba, mode="RGBA")
+    return result.resize(original_size, Image.Resampling.LANCZOS)
 
 
-def seam_inpaint_diffusers(source: Image.Image, layers, *, seam_pass_count: int) -> Image.Image:
+def inpaint_region_diffusers(
+    current_image: Image.Image,
+    source_image: Image.Image,
+    mask: np.ndarray,
+    *,
+    bbox_x: int,
+    bbox_y: int,
+    bbox_w: int,
+    bbox_h: int,
+    seed: int,
+    controlnet_weight: float,
+    context_pad: int,
+    mask_feather: int,
+    prompt_override: str | None = None,
+) -> Image.Image:
+    _ = controlnet_weight
     pipe, lora_fused, lora_scale, prompts, torch_module = _inpaint_runtime()
     positive_prompt, negative_prompt = prompts
-    prompt = (
-        f"{positive_prompt}, seamless transition between painted regions, "
-        "consistent brush lines, coherent colors"
+    prompt = f"{positive_prompt}, localized refinement, coherent brush lines, coherent colors"
+    if prompt_override:
+        prompt = f"{prompt}, {prompt_override}"
+
+    current_rgb = current_image.convert("RGB")
+    source_rgb = source_image.convert("RGB")
+    width, height = current_rgb.size
+
+    x0 = max(0, bbox_x - context_pad)
+    y0 = max(0, bbox_y - context_pad)
+    x1 = min(width, bbox_x + bbox_w + context_pad)
+    y1 = min(height, bbox_y + bbox_h + context_pad)
+
+    patch = current_rgb.crop((x0, y0, x1, y1)).convert("RGB")
+    _ = source_rgb.crop((x0, y0, x1, y1)).convert("RGB")
+
+    mask_patch = (mask[y0:y1, x0:x1].astype(np.uint8) > 0).astype(np.uint8) * 255
+    mask_image = Image.fromarray(mask_patch, mode="L")
+
+    run_patch, run_mask = _resize_pair_for_model(
+        patch,
+        mask_image,
+        target_long_side=_env_int("SDXL_SIZE", 1024),
+        min_short_side=512,
     )
+    assert run_mask is not None
 
-    base_rgba = source.convert("RGBA")
-    width, height = base_rgba.size
-    for layer in layers:
-        _paste_rgba(base_rgba, layer)
+    kwargs: dict[str, Any] = {
+        "prompt": prompt,
+        "negative_prompt": negative_prompt,
+        "image": run_patch,
+        "mask_image": run_mask,
+        "num_inference_steps": _env_int("INPAINT_STEPS", 24),
+        "guidance_scale": _env_float("SDXL_CFG", 6.5),
+        "strength": _env_float("INPAINT_DENOISE", 0.45),
+        "generator": _make_generator(torch_module, seed),
+    }
+    if not lora_fused:
+        kwargs["cross_attention_kwargs"] = {"scale": lora_scale}
 
-    working = base_rgba.convert("RGB")
-    masks = [decode_mask_rle(layer.mask_rle) for layer in layers]
-    boundary = _build_boundary_band(height, width, masks)
-    if int(boundary.max()) == 0:
-        return working
+    refined = pipe(**kwargs).images[0].convert("RGB")
+    refined = refined.resize((x1 - x0, y1 - y0), Image.Resampling.LANCZOS)
 
-    bbox = _bbox_from_mask(boundary, pad=64)
-    if not bbox:
-        return working
+    patch_np = np.array(patch, dtype=np.uint8)
+    refined_np = np.array(refined, dtype=np.uint8)
+    mask_resized = np.array(mask_image.resize((x1 - x0, y1 - y0), Image.Resampling.NEAREST), dtype=np.uint8)
+    blended_patch = _soft_blend(patch_np.astype(np.float32), refined_np.astype(np.float32), mask_resized, feather=mask_feather)
 
-    x0, y0, x1, y1 = bbox
-    boundary_patch = boundary[y0:y1, x0:x1].astype(np.uint8)
-    if int(boundary_patch.max()) == 0:
-        return working
-
-    mask_image_full = Image.fromarray((boundary_patch * 255).astype(np.uint8), mode="L")
-
-    for pass_idx in range(max(1, seam_pass_count)):
-        patch = working.crop((x0, y0, x1, y1)).convert("RGB")
-        run_patch, run_mask = _resize_pair_for_model(
-            patch,
-            mask_image_full,
-            target_long_side=_env_int("SDXL_SIZE", 1024),
-            min_short_side=512,
-        )
-        assert run_mask is not None
-
-        kwargs: dict[str, Any] = {
-            "prompt": prompt,
-            "negative_prompt": negative_prompt,
-            "image": run_patch,
-            "mask_image": run_mask,
-            "num_inference_steps": _env_int("INPAINT_STEPS", 24),
-            "guidance_scale": _env_float("SDXL_CFG", 6.5),
-            "strength": _env_float("INPAINT_DENOISE", 0.45),
-            "generator": _make_generator(torch_module, _env_int("INPAINT_SEED_BASE", 20260306) + pass_idx),
-        }
-        if not lora_fused:
-            kwargs["cross_attention_kwargs"] = {"scale": lora_scale}
-
-        refined = pipe(**kwargs).images[0].convert("RGB")
-        refined = refined.resize((x1 - x0, y1 - y0), Image.Resampling.LANCZOS)
-
-        src_patch = np.array(patch, dtype=np.uint8)
-        out_patch = np.array(refined, dtype=np.uint8)
-        mask_np = np.array(mask_image_full.resize((x1 - x0, y1 - y0), Image.Resampling.NEAREST), dtype=np.uint8)
-        blend_mask = (mask_np > 0)[:, :, None]
-        merged_patch = np.where(blend_mask, out_patch, src_patch).astype(np.uint8)
-
-        working.paste(Image.fromarray(merged_patch, mode="RGB"), (x0, y0))
-
-    return working
+    full_np = np.array(current_rgb, dtype=np.uint8)
+    full_np[y0:y1, x0:x1] = blended_patch
+    return Image.fromarray(full_np, mode="RGB")

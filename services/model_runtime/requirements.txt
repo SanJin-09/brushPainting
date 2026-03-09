@@ -8,3 +8,4 @@ diffusers==0.32.2
 transformers==4.49.0
 accelerate==1.5.2
 safetensors==0.5.3
+segment-anything==1.0

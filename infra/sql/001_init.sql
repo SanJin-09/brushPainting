@@ -8,36 +8,21 @@ CREATE TABLE IF NOT EXISTS sessions (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS crops (
+CREATE TABLE IF NOT EXISTS image_versions (
   id TEXT PRIMARY KEY,
   session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  bbox_x INTEGER NOT NULL,
-  bbox_y INTEGER NOT NULL,
-  bbox_w INTEGER NOT NULL,
-  bbox_h INTEGER NOT NULL,
-  mask_rle TEXT NOT NULL,
-  status TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS crop_versions (
-  id TEXT PRIMARY KEY,
-  crop_id TEXT NOT NULL REFERENCES crops(id) ON DELETE CASCADE,
-  version_no INTEGER NOT NULL,
+  parent_version_id TEXT REFERENCES image_versions(id) ON DELETE SET NULL,
+  kind TEXT NOT NULL,
   image_url TEXT NOT NULL,
   seed BIGINT NOT NULL,
   params_hash TEXT NOT NULL,
-  approved BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(crop_id, version_no)
-);
-
-CREATE TABLE IF NOT EXISTS compose_results (
-  id TEXT PRIMARY KEY,
-  session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  image_url TEXT NOT NULL,
-  seam_pass_count INTEGER NOT NULL DEFAULT 1,
-  quality_score DOUBLE PRECISION,
+  is_current BOOLEAN NOT NULL DEFAULT FALSE,
+  prompt_override TEXT,
+  mask_rle TEXT,
+  bbox_x INTEGER,
+  bbox_y INTEGER,
+  bbox_w INTEGER,
+  bbox_h INTEGER,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -52,6 +37,5 @@ CREATE TABLE IF NOT EXISTS jobs (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_crops_session_id ON crops(session_id);
-CREATE INDEX IF NOT EXISTS idx_crop_versions_crop_id ON crop_versions(crop_id);
+CREATE INDEX IF NOT EXISTS idx_image_versions_session_id ON image_versions(session_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_session_id ON jobs(session_id);

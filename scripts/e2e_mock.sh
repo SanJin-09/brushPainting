@@ -2,7 +2,6 @@
 set -euo pipefail
 
 API_BASE="${API_BASE:-http://localhost:8000/api/v1}"
-CROP_COUNT="${CROP_COUNT:-6}"
 STYLE_ID="${STYLE_ID:-gongbi_default}"
 RESPONSE_BODY=""
 RESPONSE_STATUS=""
@@ -96,7 +95,7 @@ poll_job() {
   return 1
 }
 
-echo "[1/9] health"
+echo "[1/8] health"
 request GET "${API_BASE%/api/v1}/healthz"
 require_2xx "health"
 
@@ -105,7 +104,7 @@ export TMP_DIR
 python3 - <<'PY'
 import os
 
-w, h = 64, 64
+w, h = 96, 72
 path = os.path.join(os.environ['TMP_DIR'], 'test.ppm')
 with open(path, 'wb') as f:
     f.write(f"P6\n{w} {h}\n255\n".encode('ascii'))
@@ -119,63 +118,75 @@ print(path)
 PY
 IMG_PATH="$TMP_DIR/test.ppm"
 
-echo "[2/9] create session"
+echo "[2/8] create session"
 request POST "$API_BASE/sessions" -F "file=@${IMG_PATH}"
 require_2xx "create session"
 session_id=$(json_field_or_fail "create session" session_id)
-[[ -n "$session_id" ]] || { echo "create session failed: session_id is empty"; echo "$RESPONSE_BODY"; exit 1; }
 echo "session_id=$session_id"
 
-echo "[3/9] segment"
-request POST "$API_BASE/sessions/$session_id/segment" -H 'Content-Type: application/json' -d "{\"crop_count\":$CROP_COUNT}"
-require_2xx "segment"
-segment_job=$(json_field_or_fail "segment" id)
-poll_job "$segment_job"
-
-echo "[4/9] lock style"
+echo "[3/8] lock style"
 request POST "$API_BASE/sessions/$session_id/style/lock" -H 'Content-Type: application/json' -d "{\"style_id\":\"$STYLE_ID\"}"
 require_2xx "lock style"
-lock_status=$(json_field_or_fail "lock style" status)
-[[ -n "$lock_status" ]] || { echo "lock style failed: status is empty"; echo "$RESPONSE_BODY"; exit 1; }
 
-echo "[5/9] generate"
-request POST "$API_BASE/sessions/$session_id/crops/generate" -H 'Content-Type: application/json' -d '{}'
-require_2xx "generate"
-gen_job=$(json_field_or_fail "generate" id)
-poll_job "$gen_job"
+echo "[4/8] render full image"
+request POST "$API_BASE/sessions/$session_id/render" -H 'Content-Type: application/json' -d '{}'
+require_2xx "render"
+render_job=$(json_field_or_fail "render" id)
+poll_job "$render_job"
 
-echo "[6/9] regenerate first crop"
+echo "[5/8] mask assist"
+mask_rle=$(python3 - <<'PY'
+import json
+import numpy as np
+
+h, w = 72, 96
+mask = np.zeros((h, w), dtype=np.uint8)
+mask[18:54, 30:66] = 1
+flat = mask.flatten(order="C")
+counts = []
+last = int(flat[0])
+run = 1
+for val in flat[1:]:
+    val_i = int(val)
+    if val_i == last:
+        run += 1
+    else:
+        counts.append(run)
+        run = 1
+        last = val_i
+counts.append(run)
+print(json.dumps({"h": h, "w": w, "start": int(flat[0]), "counts": counts}))
+PY
+)
+mask_rle_json=$(printf '%s' "$mask_rle" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')
+request POST "$API_BASE/sessions/$session_id/mask-assist" -H 'Content-Type: application/json' -d "{\"mask_rle\":$mask_rle_json}"
+require_2xx "mask assist"
+assist_mask=$(json_field_or_fail "mask assist" mask_rle)
+bbox_x=$(json_field_or_fail "mask assist" bbox_x)
+bbox_y=$(json_field_or_fail "mask assist" bbox_y)
+bbox_w=$(json_field_or_fail "mask assist" bbox_w)
+bbox_h=$(json_field_or_fail "mask assist" bbox_h)
+
+echo "[6/8] local edit"
+assist_mask_json=$(printf '%s' "$assist_mask" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')
+request POST "$API_BASE/sessions/$session_id/edits" -H 'Content-Type: application/json' -d "{\"mask_rle\":$assist_mask_json,\"bbox_x\":$bbox_x,\"bbox_y\":$bbox_y,\"bbox_w\":$bbox_w,\"bbox_h\":$bbox_h,\"prompt_override\":\"花瓣更淡\"}"
+require_2xx "local edit"
+edit_job=$(json_field_or_fail "local edit" id)
+poll_job "$edit_job"
+
+echo "[7/8] adopt latest candidate"
 request GET "$API_BASE/sessions/$session_id"
-require_2xx "get session before regenerate"
+require_2xx "get session"
 session_json="$RESPONSE_BODY"
-first_crop=$(printf '%s' "$session_json" | python3 -c 'import json,sys; obj=json.load(sys.stdin); print(obj["crops"][0]["id"])')
-request POST "$API_BASE/crops/$first_crop/regenerate" -H 'Content-Type: application/json' -d '{}'
-require_2xx "regenerate first crop"
-regen_job=$(json_field_or_fail "regenerate first crop" id)
-poll_job "$regen_job"
+candidate_id=$(printf '%s' "$session_json" | python3 -c 'import json,sys; obj=json.load(sys.stdin); versions=sorted(obj["versions"], key=lambda x:x["created_at"]); print([v["id"] for v in versions if not v["is_current"]][-1])')
+request POST "$API_BASE/sessions/$session_id/versions/$candidate_id/adopt" -H 'Content-Type: application/json' -d '{}'
+require_2xx "adopt version"
 
-echo "[7/9] approve all crops"
-request GET "$API_BASE/sessions/$session_id"
-require_2xx "get session before approve"
-session_json="$RESPONSE_BODY"
-crop_ids=$(printf '%s' "$session_json" | python3 -c 'import json,sys; obj=json.load(sys.stdin); [print(c["id"]) for c in obj["crops"]]')
-for cid in $crop_ids; do
-  request POST "$API_BASE/crops/$cid/approve" -H 'Content-Type: application/json' -d '{}'
-  require_2xx "approve crop $cid"
-done
-
-echo "[8/9] compose"
-request POST "$API_BASE/sessions/$session_id/compose" -H 'Content-Type: application/json' -d '{"seam_pass_count":1}'
-require_2xx "compose"
-compose_job=$(json_field_or_fail "compose" id)
-poll_job "$compose_job"
-
-echo "[9/9] export + final status"
+echo "[8/8] export + final status"
 request POST "$API_BASE/sessions/$session_id/export" -H 'Content-Type: application/json' -d '{}'
 require_2xx "export"
 final_url=$(json_field_or_fail "export" final_image_url)
 manifest_url=$(json_field_or_fail "export" manifest_url)
-[[ -n "$final_url" && -n "$manifest_url" ]] || { echo "export failed: missing output urls"; echo "$RESPONSE_BODY"; exit 1; }
 request GET "$API_BASE/sessions/$session_id"
 require_2xx "final get session"
 final_status=$(json_field_or_fail "final get session" status)

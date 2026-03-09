@@ -29,8 +29,8 @@ export default function UploadPage() {
 
   return (
     <div className="page upload-page">
-      <h1>工笔拼接管理台</h1>
-      <p>上传原图后开始分割、统一风格生成、审核与合成。</p>
+      <h1>工笔重绘工作台</h1>
+      <p>上传原图后先统一整图风格化，再针对不满意区域做掩码局部重绘。</p>
 
       <form onSubmit={onSubmit} className="panel">
         <input

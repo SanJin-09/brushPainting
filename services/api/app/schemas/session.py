@@ -11,59 +11,59 @@ class SessionCreateResponse(BaseModel):
     status: str
 
 
-class SegmentRequest(BaseModel):
-    seed: int | None = None
-    crop_count: int = Field(default=6, ge=1, le=24)
-
-
 class StyleLockRequest(BaseModel):
     style_id: str = Field(min_length=1, max_length=128)
 
 
-class GenerateRequest(BaseModel):
-    force_regenerate_missing: bool = True
-
-
-class RegenerateRequest(BaseModel):
+class RenderRequest(BaseModel):
     seed: int | None = None
 
 
-class ComposeRequest(BaseModel):
-    seam_pass_count: int = Field(default=1, ge=1, le=3)
+class MaskAssistRequest(BaseModel):
+    mask_rle: str = Field(min_length=1)
 
 
-class CropVersionRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    version_no: int
-    image_url: str
-    seed: int
-    params_hash: str
-    approved: bool
-    created_at: datetime
-
-
-class CropRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
+class MaskAssistResponse(BaseModel):
+    mask_rle: str
     bbox_x: int
     bbox_y: int
     bbox_w: int
     bbox_h: int
-    status: str
-    created_at: datetime
-    versions: list[CropVersionRead]
 
 
-class ComposeResultRead(BaseModel):
+class EditRequest(BaseModel):
+    mask_rle: str = Field(min_length=1)
+    bbox_x: int = Field(ge=0)
+    bbox_y: int = Field(ge=0)
+    bbox_w: int = Field(gt=0)
+    bbox_h: int = Field(gt=0)
+    seed: int | None = None
+    prompt_override: str | None = Field(default=None, max_length=500)
+
+
+class ExportResponse(BaseModel):
+    session_id: str
+    final_image_url: str
+    manifest_url: str
+
+
+class ImageVersionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
+    session_id: str
+    parent_version_id: str | None
+    kind: str
     image_url: str
-    seam_pass_count: int
-    quality_score: float | None
+    seed: int
+    params_hash: str
+    is_current: bool
+    prompt_override: str | None
+    mask_rle: str | None
+    bbox_x: int | None
+    bbox_y: int | None
+    bbox_w: int | None
+    bbox_h: int | None
     created_at: datetime
 
 
@@ -75,13 +75,7 @@ class SessionRead(BaseModel):
     style_id: str | None
     status: str
     seed: int | None
+    current_version_id: str | None
     created_at: datetime
     updated_at: datetime
-    crops: list[CropRead]
-    compose_results: list[ComposeResultRead]
-
-
-class ExportResponse(BaseModel):
-    session_id: str
-    final_image_url: str
-    manifest_url: str
+    versions: list[ImageVersionRead]
