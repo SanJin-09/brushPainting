@@ -1,0 +1,23 @@
+style_id: gongbi_no_lora
+name: 传统工笔默认风格（无LoRA）
+prompt_profile:
+  positive: |
+    Traditional Chinese gongbi painting, delicate outlines, layered mineral pigments,
+    elegant composition, fine brush details, subtle rice paper texture.
+  negative: |
+    photorealistic, modern digital cartoon, 3d render, text watermark, logo, noisy artifacts.
+render:
+  sdxl_steps: 32
+  sdxl_cfg: 7.0
+  sdxl_size: 1024
+  controlnet_weight: 0.45
+  inpaint_steps: 28
+  inpaint_denoise: 0.35
+models:
+  sdxl_base_path: /home/featurize/work/brushPainting/runtime/models/sdxl/base
+  sdxl_inpaint_path: /home/featurize/work/brushPainting/runtime/models/sdxl/inpaint
+controlnet:
+  canny_path: /home/featurize/work/brushPainting/runtime/models/controlnet/sdxl_canny
+metadata:
+  version: 1
+  locked: true
