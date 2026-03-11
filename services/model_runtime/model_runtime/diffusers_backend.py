@@ -218,6 +218,23 @@ def _ensure_model_exists(path: Path, name: str) -> Path:
     )
 
 
+def _pretrained_kwargs(path: Path, *, torch_dtype) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {
+        "torch_dtype": torch_dtype,
+        "local_files_only": True,
+    }
+
+    # Local deployments often keep only fp16 safetensors to save disk.
+    # Diffusers needs the matching variant hint, otherwise it falls back to
+    # looking for the default *.bin filenames.
+    if any(path.rglob("*.fp16.safetensors")):
+        kwargs["variant"] = "fp16"
+        kwargs["use_safetensors"] = True
+    elif any(path.rglob("*.safetensors")):
+        kwargs["use_safetensors"] = True
+    return kwargs
+
+
 def _prepare_pipeline(pipe, torch_module):
     device = _model_device()
     if device.startswith("cuda"):
@@ -280,14 +297,12 @@ def _style_runtime():
 
     controlnet = ControlNetModel.from_pretrained(
         str(controlnet_path),
-        torch_dtype=dtype,
-        local_files_only=True,
+        **_pretrained_kwargs(controlnet_path, torch_dtype=dtype),
     )
     pipe = StableDiffusionXLControlNetImg2ImgPipeline.from_pretrained(
         str(base_model_path),
         controlnet=controlnet,
-        torch_dtype=dtype,
-        local_files_only=True,
+        **_pretrained_kwargs(base_model_path, torch_dtype=dtype),
     )
 
     lora_fused, lora_scale = _load_lora(pipe, payload)
@@ -308,8 +323,7 @@ def _inpaint_runtime():
 
     pipe = StableDiffusionXLInpaintPipeline.from_pretrained(
         str(inpaint_model_path),
-        torch_dtype=dtype,
-        local_files_only=True,
+        **_pretrained_kwargs(inpaint_model_path, torch_dtype=dtype),
     )
 
     lora_fused, lora_scale = _load_lora(pipe, payload)
