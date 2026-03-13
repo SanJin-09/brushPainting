@@ -7,8 +7,9 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from filter_downloaded_reference_images import evaluate_content_filter  # noqa: E402
 from run_reference_scrape_batch import BatchConfig  # noqa: E402
-from scrape_reference_images import Config, LinkCollector, Scraper  # noqa: E402
+from scrape_reference_images import Config, LinkCollector, Scraper, _record_matches  # noqa: E402
 
 
 def test_download_config_requires_open_license_patterns(tmp_path):
@@ -119,3 +120,75 @@ def test_html_metadata_extraction_uses_meta_and_regex(tmp_path):
     assert metadata["rights"] == "CC BY 4.0"
     assert metadata["catalog_number"] == "ABC-123"
     assert metadata["download_entry_status"] == "available"
+
+
+def test_html_content_patterns_filter_out_ceramics(tmp_path):
+    config_path = tmp_path / "content_filter.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "site_id": "content_filter_site",
+                "access_mode": "download",
+                "source_type": "html",
+                "start_urls": ["https://example.com/object/1"],
+                "respect_robots_txt": True,
+                "requires_open_license": False,
+                "max_images": 10,
+                "content_allow_patterns": ["painting", "figure", "landscape"],
+                "content_deny_patterns": ["porcelain", "ceramic", "vase"],
+                "html_metadata_fields": {
+                    "title": ["og:title", "__page_title__"],
+                    "object_url": ["__canonical_url__", "__page_url__"]
+                },
+                "html_download_link_patterns": ["download"]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    config = Config.load(config_path)
+    scraper = Scraper(config, dry_run=True, verbose=False)
+    try:
+        html = """
+        <html>
+          <head>
+            <title>Qianlong porcelain vase</title>
+            <meta property="og:title" content="Qianlong porcelain vase">
+            <link rel="canonical" href="https://example.com/object/1">
+          </head>
+          <body>
+            <a href="/download/full.jpg">Download</a>
+          </body>
+        </html>
+        """
+        parser = LinkCollector()
+        parser.feed(html)
+        metadata = scraper._extract_html_metadata("https://example.com/object/1", html, parser)
+        text = scraper._build_html_filter_text("https://example.com/object/1", html, metadata)
+    finally:
+        scraper.close()
+
+    assert (
+        _record_matches(
+            text,
+            allow_patterns=config.content_allow_patterns,
+            deny_patterns=config.content_deny_patterns,
+        )
+        is False
+    )
+
+
+def test_offline_content_filter_rejects_porcelain_metadata():
+    passed, diagnostics = evaluate_content_filter(
+        {
+            "title": "Qianlong porcelain vase with lid",
+            "object_url": "https://example.com/object/1",
+            "priority_tags": ["color"],
+        },
+        allow_patterns=["painting", "figure", "landscape"],
+        deny_patterns=["porcelain", "ceramic", "vase", "lid"],
+    )
+
+    assert passed is False
+    assert diagnostics["matched_pattern"] in {"porcelain", "vase", "lid"}

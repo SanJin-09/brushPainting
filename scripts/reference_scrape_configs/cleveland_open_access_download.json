@@ -26,6 +26,38 @@
     "copyright"
   ],
   "follow_page_links": false,
+  "content_allow_patterns": [
+    "painting",
+    "handscroll",
+    "album leaf",
+    "landscape",
+    "figure",
+    "bird",
+    "flower",
+    "court"
+  ],
+  "content_deny_patterns": [
+    "porcelain",
+    "ceramic",
+    "pottery",
+    "earthenware",
+    "stoneware",
+    "vase",
+    "jar",
+    "bowl",
+    "dish",
+    "plate",
+    "cup",
+    "lid",
+    "bottle",
+    "ewer",
+    "vessel",
+    "bronze",
+    "jade",
+    "lacquer",
+    "textile",
+    "furniture"
+  ],
   "image_filter": {
     "text_density": {
       "enabled": false,
@@ -42,7 +74,9 @@
       ],
       "negative_prompts": [
         "a page of Chinese calligraphy or handwritten manuscript",
-        "a scanned book page full of text"
+        "a scanned book page full of text",
+        "a porcelain vase or ceramic vessel museum object",
+        "a photograph of pottery, bronze ware, jade or lacquerware"
       ],
       "min_positive_score": 0.3,
       "min_margin": 0.05
@@ -93,7 +127,27 @@
         "book",
         "poem",
         "poetry",
-        "rubbing"
+        "rubbing",
+        "porcelain",
+        "ceramic",
+        "pottery",
+        "earthenware",
+        "stoneware",
+        "vase",
+        "jar",
+        "bowl",
+        "dish",
+        "plate",
+        "cup",
+        "lid",
+        "bottle",
+        "ewer",
+        "vessel",
+        "bronze",
+        "jade",
+        "lacquer",
+        "textile",
+        "furniture"
       ],
       "metadata_fields": {
         "record_id": "id",

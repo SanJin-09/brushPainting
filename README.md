@@ -163,6 +163,8 @@ python3 scripts/filter_downloaded_reference_images.py \
 
 未显式传 `--report-dir` 时，离线筛选报告会默认写到输入目录下的 `_offline_filter_reports/`。
 
+如果你发现抓到了瓷器、玉器、青铜器等非绘画文物，可以直接在对应站点配置里补 `content_allow_patterns` / `content_deny_patterns`。离线筛选脚本会复用这组规则，不需要重新实现一套单独的过滤逻辑。
+
 脚本特点：
 
 - 读取 JSON 配置，按站点声明 `access_mode`、授权规则和访问节流

@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -42,8 +43,10 @@ def main() -> int:
         kept_manifest_path = report_dir / "offline_kept_manifest.jsonl"
         rejected_manifest_path = report_dir / "offline_rejected_manifest.jsonl"
 
-        filter_config = load_image_filter_config(Path(args.config))
+        config_path = Path(args.config).resolve()
+        filter_config = load_image_filter_config(config_path)
         pipeline = ImageFilterPipeline(filter_config, verbose=args.verbose)
+        content_filter = load_content_filter_config(config_path)
         metadata_index = load_manifest_index(Path(args.manifest).resolve() if args.manifest else input_dir / "manifest.jsonl")
         move_rejected_to = Path(args.move_rejected_to).resolve() if args.move_rejected_to else None
 
@@ -60,16 +63,34 @@ def main() -> int:
 
                 content = image_path.read_bytes()
                 sha256 = hashlib.sha256(content).hexdigest()
-                passed, diagnostics = pipeline.assess(content)
                 base_record = {
                     "file_path": str(image_path),
                     "relative_path": str(image_path.relative_to(input_dir)),
                     "size_bytes": len(content),
                     "sha256": sha256,
-                    "filter_diagnostics": diagnostics,
+                    "filter_diagnostics": {},
                 }
 
                 merged_record = merge_metadata(base_record, metadata_index, image_path=image_path, sha256=sha256)
+                content_passed, content_diagnostics = evaluate_content_filter(
+                    merged_record,
+                    allow_patterns=content_filter["allow_patterns"],
+                    deny_patterns=content_filter["deny_patterns"],
+                )
+                if not content_passed:
+                    merged_record["filter_diagnostics"]["content_filter"] = content_diagnostics
+                    merged_record["filter_diagnostics"]["rejected_by"] = "content_filter"
+                    if move_rejected_to and not args.dry_run:
+                        target = move_rejected_to / image_path.relative_to(input_dir)
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.move(str(image_path), str(target))
+                        merged_record["moved_to"] = str(target)
+                    rejected_manifest.write(json.dumps(merged_record, ensure_ascii=False) + "\n")
+                    rejected_count += 1
+                    continue
+
+                passed, diagnostics = pipeline.assess(content)
+                merged_record["filter_diagnostics"].update(diagnostics)
                 if passed:
                     kept_manifest.write(json.dumps(merged_record, ensure_ascii=False) + "\n")
                     kept_count += 1
@@ -141,6 +162,17 @@ def load_manifest_index(path: Path) -> dict[str, dict[str, Any]]:
     return index
 
 
+def load_content_filter_config(path: Path) -> dict[str, list[str]]:
+    if not path.exists():
+        return {"allow_patterns": [], "deny_patterns": []}
+    with path.open("r", encoding="utf-8") as f:
+        payload = json.load(f)
+    return {
+        "allow_patterns": [str(x) for x in payload.get("content_allow_patterns", [])],
+        "deny_patterns": [str(x) for x in payload.get("content_deny_patterns", [])],
+    }
+
+
 def iter_image_paths(input_dir: Path, *, report_dir: Path, move_rejected_to: Path | None) -> list[Path]:
     image_paths: list[Path] = []
     excluded_roots: set[Path] = set()
@@ -182,6 +214,52 @@ def merge_metadata(base_record: dict[str, Any], metadata_index: dict[str, dict[s
             continue
         merged.setdefault(key, value)
     return merged
+
+
+def evaluate_content_filter(
+    record: dict[str, Any],
+    *,
+    allow_patterns: list[str],
+    deny_patterns: list[str],
+) -> tuple[bool, dict[str, Any]]:
+    text = build_content_text(record)
+    if deny_patterns:
+        for pattern in deny_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                return False, {"matched_pattern": pattern, "text_excerpt": text[:240]}
+    if allow_patterns and not any(re.search(pattern, text, re.IGNORECASE) for pattern in allow_patterns):
+        return False, {"matched_pattern": None, "text_excerpt": text[:240]}
+    return True, {}
+
+
+def build_content_text(record: dict[str, Any]) -> str:
+    excluded_keys = {
+        "file_path",
+        "relative_path",
+        "saved_path",
+        "moved_to",
+        "sha256",
+        "size_bytes",
+        "filter_diagnostics",
+        "content_type",
+    }
+    fragments: list[str] = []
+    for key, value in record.items():
+        if key in excluded_keys or value is None:
+            continue
+        if isinstance(value, str):
+            normalized = " ".join(value.split())
+            if normalized:
+                fragments.append(normalized)
+            continue
+        if isinstance(value, list):
+            normalized_items = [" ".join(str(item).split()) for item in value if str(item).strip()]
+            if normalized_items:
+                fragments.extend(normalized_items)
+            continue
+        if isinstance(value, (int, float, bool)):
+            fragments.append(str(value))
+    return " | ".join(fragments)
 
 
 if __name__ == "__main__":

@@ -215,6 +215,8 @@ class Config:
     respect_robots_txt: bool
     page_url_allow_patterns: list[str]
     page_url_deny_patterns: list[str]
+    content_allow_patterns: list[str]
+    content_deny_patterns: list[str]
     image_url_allow_patterns: list[str]
     image_url_deny_patterns: list[str]
     headers: dict[str, str]
@@ -302,6 +304,8 @@ class Config:
             respect_robots_txt=True,
             page_url_allow_patterns=[str(x) for x in payload.get("page_url_allow_patterns", [])],
             page_url_deny_patterns=[str(x) for x in payload.get("page_url_deny_patterns", [])],
+            content_allow_patterns=[str(x) for x in payload.get("content_allow_patterns", [])],
+            content_deny_patterns=[str(x) for x in payload.get("content_deny_patterns", [])],
             image_url_allow_patterns=[str(x) for x in payload.get("image_url_allow_patterns", [])],
             image_url_deny_patterns=[str(x) for x in payload.get("image_url_deny_patterns", [])],
             headers=headers,
@@ -445,6 +449,28 @@ class Scraper:
                 parser = LinkCollector()
                 parser.feed(response.text)
                 html_metadata = self._extract_html_metadata(page_url, response.text, parser)
+                html_filter_text = self._build_html_filter_text(page_url, response.text, html_metadata)
+
+                if not _record_matches(
+                    html_filter_text,
+                    allow_patterns=self.config.content_allow_patterns,
+                    deny_patterns=self.config.content_deny_patterns,
+                ):
+                    self._append_rejected_record(
+                        {
+                            **self._build_audit_fields(
+                                metadata=html_metadata,
+                                job_name="html_page_filter",
+                                source_page=page_url,
+                                source_type="html",
+                                license_status="not_checked_page_filtered",
+                                download_entry_status=str(html_metadata.get("download_entry_status") or "not_checked"),
+                            ),
+                            "rejected_reason": "page_content_filter",
+                        }
+                    )
+                    time.sleep(self.config.request_delay_seconds)
+                    continue
 
                 if self.config.access_mode == "metadata_only" and self._should_record_html_page(page_url):
                     self._write_metadata_record(
@@ -804,6 +830,17 @@ class Scraper:
         metadata.setdefault("download_entry_status", self._infer_download_entry_status(parser, page_url))
         metadata["priority_tags"] = _derive_priority_tags(" | ".join(str(value) for value in metadata.values() if value))
         return {key: value for key, value in metadata.items() if value not in (None, "", [])}
+
+    def _build_html_filter_text(self, page_url: str, raw_html: str, metadata: dict[str, Any]) -> str:
+        fragments: list[str] = [page_url, _html_to_text(raw_html)]
+        for key in ("title", "artist", "catalog_number", "rights", "object_url"):
+            value = metadata.get(key)
+            if value:
+                fragments.append(str(value))
+        priority_tags = metadata.get("priority_tags")
+        if isinstance(priority_tags, list):
+            fragments.extend(str(tag) for tag in priority_tags if tag)
+        return " | ".join(fragment for fragment in fragments if fragment)
 
     def _infer_download_entry_status(self, parser: LinkCollector, page_url: str) -> str:
         if self._collect_html_download_candidates(page_url, parser):
