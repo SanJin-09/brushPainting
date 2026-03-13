@@ -192,3 +192,32 @@ def test_offline_content_filter_rejects_porcelain_metadata():
 
     assert passed is False
     assert diagnostics["matched_pattern"] in {"porcelain", "vase", "lid"}
+
+
+def test_offline_content_filter_ignores_administrative_fields_for_allow_patterns():
+    passed, diagnostics = evaluate_content_filter(
+        {
+            "job_name": "met_open_access_chinese_painting",
+            "title": "Small covered wine pot or teapot",
+            "record_id": "461221",
+        },
+        allow_patterns=["painting", "figure", "landscape"],
+        deny_patterns=[],
+    )
+
+    assert passed is False
+    assert diagnostics["matched_pattern"] is None
+
+
+def test_offline_content_filter_uses_relative_path_for_residual_object_views():
+    passed, diagnostics = evaluate_content_filter(
+        {
+            "title": "Chinese object",
+            "relative_path": "SLP1732-bottom_133d2032fd2d.jpg",
+        },
+        allow_patterns=[],
+        deny_patterns=["bottom"],
+    )
+
+    assert passed is False
+    assert diagnostics["matched_pattern"] == "bottom"

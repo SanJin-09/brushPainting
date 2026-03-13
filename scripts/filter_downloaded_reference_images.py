@@ -235,13 +235,23 @@ def evaluate_content_filter(
 def build_content_text(record: dict[str, Any]) -> str:
     excluded_keys = {
         "file_path",
-        "relative_path",
         "saved_path",
         "moved_to",
         "sha256",
         "size_bytes",
         "filter_diagnostics",
         "content_type",
+        "site_id",
+        "job_name",
+        "source_type",
+        "access_mode",
+        "source_page",
+        "rights",
+        "rights_url",
+        "license_check_status",
+        "download_policy_version",
+        "download_entry_status",
+        "record_type",
     }
     fragments: list[str] = []
     for key, value in record.items():
