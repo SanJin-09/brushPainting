@@ -167,9 +167,18 @@ def load_content_filter_config(path: Path) -> dict[str, list[str]]:
         return {"allow_patterns": [], "deny_patterns": []}
     with path.open("r", encoding="utf-8") as f:
         payload = json.load(f)
+    offline_allow = payload.get("offline_content_allow_patterns")
+    offline_deny = payload.get("offline_content_deny_patterns")
     return {
-        "allow_patterns": [str(x) for x in payload.get("content_allow_patterns", [])],
-        "deny_patterns": [str(x) for x in payload.get("content_deny_patterns", [])],
+        "allow_patterns": [str(x) for x in (offline_allow if offline_allow is not None else [])],
+        "deny_patterns": [
+            str(x)
+            for x in (
+                offline_deny
+                if offline_deny is not None
+                else payload.get("content_deny_patterns", [])
+            )
+        ],
     }
 
 

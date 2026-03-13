@@ -7,7 +7,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from filter_downloaded_reference_images import evaluate_content_filter  # noqa: E402
+from filter_downloaded_reference_images import evaluate_content_filter, load_content_filter_config  # noqa: E402
 from run_reference_scrape_batch import BatchConfig  # noqa: E402
 from scrape_reference_images import Config, LinkCollector, Scraper, _record_matches  # noqa: E402
 
@@ -221,3 +221,43 @@ def test_offline_content_filter_uses_relative_path_for_residual_object_views():
 
     assert passed is False
     assert diagnostics["matched_pattern"] == "bottom"
+
+
+def test_offline_filter_config_defaults_to_deny_only(tmp_path):
+    config_path = tmp_path / "offline_defaults.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "content_allow_patterns": ["painting", "figure", "landscape"],
+                "content_deny_patterns": ["porcelain", "lid"],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    content_filter = load_content_filter_config(config_path)
+
+    assert content_filter["allow_patterns"] == []
+    assert content_filter["deny_patterns"] == ["porcelain", "lid"]
+
+
+def test_offline_filter_config_honors_explicit_offline_allow_patterns(tmp_path):
+    config_path = tmp_path / "offline_allow.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "content_allow_patterns": ["painting"],
+                "content_deny_patterns": ["porcelain"],
+                "offline_content_allow_patterns": ["landscape", "figure"],
+                "offline_content_deny_patterns": ["bronze"],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    content_filter = load_content_filter_config(config_path)
+
+    assert content_filter["allow_patterns"] == ["landscape", "figure"]
+    assert content_filter["deny_patterns"] == ["bronze"]
