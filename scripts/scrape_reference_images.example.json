@@ -1,0 +1,66 @@
+{
+  "start_urls": [
+    "https://example.com/gallery"
+  ],
+  "allowed_domains": [
+    "example.com",
+    "static.example.com"
+  ],
+  "output_dir": "runtime/reference_scrape/example_gallery",
+  "request_delay_seconds": 1.0,
+  "timeout_seconds": 20,
+  "max_pages": 100,
+  "max_images": 300,
+  "min_image_bytes": 50000,
+  "respect_robots_txt": true,
+  "image_filter": {
+    "text_density": {
+      "enabled": true,
+      "max_score": 0.58,
+      "min_components": 80
+    },
+    "clip": {
+      "enabled": false,
+      "model_name_or_path": "openai/clip-vit-base-patch32",
+      "local_files_only": false,
+      "positive_prompts": [
+        "a traditional Chinese gongbi painting of figures or landscape"
+      ],
+      "negative_prompts": [
+        "a page of Chinese calligraphy or handwritten manuscript",
+        "a scanned book page full of text"
+      ],
+      "min_positive_score": 0.3,
+      "min_margin": 0.05
+    }
+  },
+  "page_url_allow_patterns": [
+    "/gallery",
+    "/artwork/",
+    "/page/"
+  ],
+  "page_url_deny_patterns": [
+    "/login",
+    "/signup",
+    "/search",
+    "avatar",
+    "icon",
+    "logo"
+  ],
+  "image_url_allow_patterns": [
+    "\\.jpg$",
+    "\\.jpeg$",
+    "\\.png$",
+    "\\.webp$"
+  ],
+  "image_url_deny_patterns": [
+    "avatar",
+    "icon",
+    "logo",
+    "thumb",
+    "thumbnail"
+  ],
+  "headers": {
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"
+  }
+}

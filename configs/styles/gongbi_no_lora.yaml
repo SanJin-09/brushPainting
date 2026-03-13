@@ -2,10 +2,24 @@ style_id: gongbi_no_lora
 name: 传统工笔默认风格（无LoRA）
 prompt_profile:
   positive: |
-    Traditional Chinese gongbi painting, delicate outlines, layered mineral pigments,
-    elegant composition, fine brush details, subtle rice paper texture.
+    Traditional Chinese gongbi painting, meticulous baimiao-inspired contour drawing,
+    thin and controlled ink outlines, iron-wire line quality, refined and elegant brush rhythm,
+    layered mineral pigments, azurite and malachite color accents, restrained and graceful palette,
+    flat yet deliberate composition, clear foreground middle ground background separation,
+    elegant negative space, subtle silk or rice paper texture, highly refined ornamental detailing,
+    delicate facial features and costume pattern details when figures are present,
+    stylized rocks, pines, clouds and water patterns when landscape elements are present,
+    simplified natural textures, decorative rather than photographic rendering,
+    coherent linework, unified color washes, traditional Chinese painting aesthetics,
+    hand-painted finish, non-photographic image, strong style transformation.
   negative: |
-    photorealistic, modern digital cartoon, 3d render, text watermark, logo, noisy artifacts.
+    photorealistic, photography, realistic skin pores, realistic hair strands, realistic grass texture,
+    realistic bark texture, camera, lens, bokeh, depth of field, cinematic lighting, harsh shadow,
+    glossy highlight, specular reflection, HDR, modern digital cartoon, anime, manga, comic,
+    3d render, game art, concept art, thick impasto, rough oil painting, messy sketch,
+    watercolor bloom, splash ink abstraction, western watercolor, heavy texture brush,
+    gritty realism, excessive contrast, oversharpening, over-detailed photo texture,
+    text, watermark, logo, signature, frame border, noisy artifacts.
 render:
   sdxl_steps: 32
   sdxl_cfg: 7.0

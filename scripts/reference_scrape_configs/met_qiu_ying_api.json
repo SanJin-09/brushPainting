@@ -1,0 +1,104 @@
+{
+  "allowed_domains": [
+    "metmuseum.org"
+  ],
+  "output_dir": "runtime/reference_scrape/met_qiu_ying",
+  "request_delay_seconds": 1.0,
+  "timeout_seconds": 25,
+  "max_pages": 60,
+  "max_images": 60,
+  "min_image_bytes": 100000,
+  "respect_robots_txt": true,
+  "image_filter": {
+    "text_density": {
+      "enabled": true,
+      "max_score": 0.58,
+      "min_components": 80
+    },
+    "clip": {
+      "enabled": false,
+      "model_name_or_path": "openai/clip-vit-base-patch32",
+      "local_files_only": false,
+      "positive_prompts": [
+        "a traditional Chinese gongbi painting of figures or landscape",
+        "a detailed Chinese painting with figures, mountains, birds or flowers"
+      ],
+      "negative_prompts": [
+        "a page of Chinese calligraphy or handwritten manuscript",
+        "a scanned book page full of text"
+      ],
+      "min_positive_score": 0.3,
+      "min_margin": 0.05
+    }
+  },
+  "image_url_allow_patterns": [
+    "images\\.metmuseum\\.org/.+\\.jpg($|\\?)"
+  ],
+  "api_jobs": [
+    {
+      "name": "met_qiu_ying",
+      "mode": "json_values_to_detail",
+      "start_url": "https://collectionapi.metmuseum.org/public/collection/v1/search",
+      "query_params": {
+        "q": "Qiu Ying",
+        "hasImages": "true"
+      },
+      "list_path": "objectIDs[]",
+      "detail_url_template": "https://collectionapi.metmuseum.org/public/collection/v1/objects/{value}",
+      "detail_page_fields": [
+        "objectURL"
+      ],
+      "detail_image_fields": [
+        "primaryImage",
+        "additionalImages[]"
+      ],
+      "detail_record_text_fields": [
+        "title",
+        "artistDisplayName",
+        "artistDisplayBio",
+        "classification",
+        "objectName",
+        "medium",
+        "department",
+        "tags[].term"
+      ],
+      "detail_record_allow_patterns": [
+        "qiu ying",
+        "paint",
+        "painting",
+        "hanging scroll",
+        "handscroll",
+        "album leaf",
+        "landscape",
+        "figure",
+        "figures",
+        "lady",
+        "ladies",
+        "court",
+        "palace",
+        "mountain",
+        "river",
+        "bird",
+        "flower"
+      ],
+      "detail_record_deny_patterns": [
+        "calligraphy",
+        "manuscript",
+        "letter",
+        "rubbed",
+        "rubbing",
+        "printed",
+        "book",
+        "text",
+        "poem",
+        "poetry",
+        "sutra",
+        "seal"
+      ],
+      "max_requests": 1
+    }
+  ],
+  "headers": {
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"
+  }
+}

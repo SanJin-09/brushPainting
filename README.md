@@ -104,6 +104,66 @@ uvicorn services.api.app.main:app --reload --port 8000
 ./scripts/e2e_mock.sh
 ```
 
+## 参考图抓取脚本
+
+当你需要先批量收集工笔参考图，再人工审核时，可以使用：
+
+```bash
+python3 scripts/scrape_reference_images.py \
+  --config scripts/scrape_reference_images.example.json \
+  --verbose
+```
+
+如果环境里还没装 `httpx`，先执行：
+
+```bash
+pip install httpx
+```
+
+如果启用了图像级筛选：
+
+- `text_density` 需要 `opencv-python-headless` 和 `numpy`
+- `clip` 还需要 `torch`、`transformers` 和 `Pillow`
+
+仓库内置了几组可直接跑的站点配置：
+
+- `scripts/reference_scrape_configs/wikimedia_qiu_ying.json`
+- `scripts/reference_scrape_configs/met_qiu_ying_api.json`
+- `scripts/reference_scrape_configs/cleveland_qiu_ying_api.json`
+- `scripts/reference_scrape_configs/npm_open_data_pages.json`
+
+例如先抓一轮 Wikimedia Commons：
+
+```bash
+python3 scripts/scrape_reference_images.py \
+  --config scripts/reference_scrape_configs/wikimedia_qiu_ying.json \
+  --verbose
+```
+
+如果图片已经抓到本地，想补做一轮离线筛选，可以使用：
+
+```bash
+python3 scripts/filter_downloaded_reference_images.py \
+  --config scripts/reference_scrape_configs/met_qiu_ying_api.json \
+  --input-dir runtime/reference_scrape/filtered_met_run \
+  --move-rejected-to runtime/reference_scrape/filtered_met_run_rejected \
+  --verbose
+```
+
+未显式传 `--report-dir` 时，离线筛选报告会默认写到输入目录下的 `_offline_filter_reports/`。
+
+脚本特点：
+
+- 读取 JSON 配置，限制允许抓取的域名
+- 同时支持 HTML 页面递归抓取和官方 JSON API 种子源
+- 支持对 API 记录按标题、分类、媒材、标签等元数据做自动筛选
+- 支持图像级第二层筛选：默认可用的文字密度启发式，可选 CLIP 零样本打分
+- 默认遵守 `robots.txt`
+- 支持页面链接递归抓取、图片直链下载、按 URL 规则过滤
+- 自动去重，并输出 `manifest.jsonl` 与 `rejected_manifest.jsonl` 供后续人工审核
+- 离线后处理脚本会输出 `offline_kept_manifest.jsonl` 与 `offline_rejected_manifest.jsonl`
+- 不处理登录、验证码、反爬绕过；使用前请确认站点条款与图片授权
+
 ## 说明
 
 当前仓库支持两套后端：
