@@ -1,19 +1,35 @@
 {
+  "site_id": "met_open_access",
+  "access_mode": "download",
+  "source_type": "api",
   "allowed_domains": [
     "metmuseum.org"
   ],
-  "output_dir": "runtime/reference_scrape/met_qiu_ying",
+  "output_dir": "runtime/reference_scrape/met_open_access",
   "request_delay_seconds": 1.0,
+  "max_requests_per_minute": 20,
   "timeout_seconds": 25,
-  "max_pages": 60,
-  "max_images": 60,
+  "max_pages": 10,
+  "max_images": 120,
   "min_image_bytes": 100000,
   "respect_robots_txt": true,
+  "requires_open_license": true,
+  "license_allow_patterns": [
+    "\\btrue\\b",
+    "public domain",
+    "open access"
+  ],
+  "license_deny_patterns": [
+    "all rights reserved",
+    "restricted",
+    "copyright"
+  ],
+  "follow_page_links": false,
   "image_filter": {
     "text_density": {
-      "enabled": true,
-      "max_score": 0.58,
-      "min_components": 80
+      "enabled": false,
+      "max_score": 0.78,
+      "min_components": 140
     },
     "clip": {
       "enabled": false,
@@ -21,7 +37,7 @@
       "local_files_only": false,
       "positive_prompts": [
         "a traditional Chinese gongbi painting of figures or landscape",
-        "a detailed Chinese painting with figures, mountains, birds or flowers"
+        "a colored Chinese bird-and-flower or court painting"
       ],
       "negative_prompts": [
         "a page of Chinese calligraphy or handwritten manuscript",
@@ -32,22 +48,19 @@
     }
   },
   "image_url_allow_patterns": [
-    "images\\.metmuseum\\.org/.+\\.jpg($|\\?)"
+    "images\\.metmuseum\\.org/.+\\.(jpg|jpeg)($|\\?)"
   ],
-  "api_jobs": [
+  "download_jobs": [
     {
-      "name": "met_qiu_ying",
+      "name": "met_open_access_chinese_painting",
       "mode": "json_values_to_detail",
       "start_url": "https://collectionapi.metmuseum.org/public/collection/v1/search",
       "query_params": {
-        "q": "Qiu Ying",
+        "q": "Chinese painting",
         "hasImages": "true"
       },
       "list_path": "objectIDs[]",
       "detail_url_template": "https://collectionapi.metmuseum.org/public/collection/v1/objects/{value}",
-      "detail_page_fields": [
-        "objectURL"
-      ],
       "detail_image_fields": [
         "primaryImage",
         "additionalImages[]"
@@ -55,45 +68,51 @@
       "detail_record_text_fields": [
         "title",
         "artistDisplayName",
-        "artistDisplayBio",
         "classification",
         "objectName",
         "medium",
         "department",
+        "culture",
         "tags[].term"
       ],
       "detail_record_allow_patterns": [
-        "qiu ying",
+        "china",
+        "chinese",
         "paint",
         "painting",
         "hanging scroll",
         "handscroll",
         "album leaf",
-        "landscape",
         "figure",
         "figures",
-        "lady",
-        "ladies",
-        "court",
-        "palace",
-        "mountain",
-        "river",
+        "landscape",
         "bird",
-        "flower"
+        "flower",
+        "court",
+        "palace"
       ],
       "detail_record_deny_patterns": [
         "calligraphy",
         "manuscript",
         "letter",
-        "rubbed",
-        "rubbing",
-        "printed",
         "book",
         "text",
         "poem",
         "poetry",
-        "sutra",
-        "seal"
+        "rubbing",
+        "printed"
+      ],
+      "detail_metadata_fields": {
+        "record_id": "objectID",
+        "title": "title",
+        "artist": "artistDisplayName",
+        "catalog_number": "accessionNumber",
+        "object_url": "objectURL",
+        "rights": "__literal__:Public Domain / The Met Open Access",
+        "rights_url": "__literal__:https://www.metmuseum.org/about-the-met/policies-and-documents/open-access"
+      },
+      "detail_license_text_fields": [
+        "isPublicDomain"
       ],
       "max_requests": 1
     }

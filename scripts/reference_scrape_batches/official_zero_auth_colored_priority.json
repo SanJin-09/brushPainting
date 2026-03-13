@@ -1,0 +1,30 @@
+{
+  "batch_id": "official_zero_auth_colored_priority",
+  "download_policy_version": "compliance-v1",
+  "sites": [
+    {
+      "site_id": "met_open_access",
+      "config": "../reference_scrape_configs/met_open_access_download.json"
+    },
+    {
+      "site_id": "cleveland_open_access",
+      "config": "../reference_scrape_configs/cleveland_open_access_download.json"
+    },
+    {
+      "site_id": "npm_open_license",
+      "config": "../reference_scrape_configs/npm_open_license_download.json"
+    },
+    {
+      "site_id": "dpm_digicol_metadata",
+      "config": "../reference_scrape_configs/dpm_digicol_metadata.json"
+    },
+    {
+      "site_id": "dpm_minghuaji_metadata",
+      "config": "../reference_scrape_configs/dpm_minghuaji_metadata.json"
+    },
+    {
+      "site_id": "smithsonian_nmaa_metadata",
+      "config": "../reference_scrape_configs/smithsonian_nmaa_metadata.json"
+    }
+  ]
+}

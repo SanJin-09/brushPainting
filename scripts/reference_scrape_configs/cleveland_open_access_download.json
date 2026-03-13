@@ -1,19 +1,36 @@
 {
+  "site_id": "cleveland_open_access",
+  "access_mode": "download",
+  "source_type": "api",
   "allowed_domains": [
-    "clevelandart.org"
+    "clevelandart.org",
+    "openaccess-api.clevelandart.org"
   ],
-  "output_dir": "runtime/reference_scrape/cleveland_qiu_ying",
+  "output_dir": "runtime/reference_scrape/cleveland_open_access",
   "request_delay_seconds": 1.0,
+  "max_requests_per_minute": 20,
   "timeout_seconds": 25,
-  "max_pages": 80,
-  "max_images": 80,
+  "max_pages": 10,
+  "max_images": 120,
   "min_image_bytes": 100000,
   "respect_robots_txt": true,
+  "requires_open_license": true,
+  "license_allow_patterns": [
+    "cc0",
+    "open access",
+    "public domain"
+  ],
+  "license_deny_patterns": [
+    "all rights reserved",
+    "restricted",
+    "copyright"
+  ],
+  "follow_page_links": false,
   "image_filter": {
     "text_density": {
-      "enabled": true,
-      "max_score": 0.58,
-      "min_components": 80
+      "enabled": false,
+      "max_score": 0.78,
+      "min_components": 140
     },
     "clip": {
       "enabled": false,
@@ -21,7 +38,7 @@
       "local_files_only": false,
       "positive_prompts": [
         "a traditional Chinese gongbi painting of figures or landscape",
-        "a detailed Chinese painting with figures, mountains, birds or flowers"
+        "a colored Chinese bird-and-flower or court painting"
       ],
       "negative_prompts": [
         "a page of Chinese calligraphy or handwritten manuscript",
@@ -31,20 +48,17 @@
       "min_margin": 0.05
     }
   },
-  "api_jobs": [
+  "download_jobs": [
     {
-      "name": "cleveland_qiu_ying",
+      "name": "cleveland_open_access_chinese_painting",
       "mode": "json_records",
       "start_url": "https://openaccess-api.clevelandart.org/api/artworks/",
       "query_params": {
-        "q": "Qiu Ying",
+        "q": "Chinese painting",
         "has_image": "1",
         "limit": "50"
       },
       "list_path": "data[]",
-      "page_fields": [
-        "url"
-      ],
       "image_fields": [
         "images.web.url"
       ],
@@ -56,22 +70,18 @@
         "technique",
         "series",
         "creators[].description",
-        "creators[].role",
         "wall_description"
       ],
       "record_allow_patterns": [
-        "qiu ying",
+        "china",
+        "chinese",
         "painting",
         "handscroll",
         "album leaf",
         "landscape",
         "figure",
         "figures",
-        "lady",
-        "ladies",
         "court",
-        "mountain",
-        "river",
         "bird",
         "flower"
       ],
@@ -80,12 +90,22 @@
         "manuscript",
         "letter",
         "text",
-        "rubbing",
+        "book",
         "poem",
         "poetry",
-        "book",
-        "printed",
-        "seal"
+        "rubbing"
+      ],
+      "metadata_fields": {
+        "record_id": "id",
+        "title": "title",
+        "artist": "creators[].description",
+        "catalog_number": "accession_number",
+        "object_url": "url",
+        "rights": "share_license_status",
+        "rights_url": "__literal__:https://openaccess-api.clevelandart.org/"
+      },
+      "license_text_fields": [
+        "share_license_status"
       ],
       "pagination_param": "skip",
       "pagination_start": 0,

@@ -1,23 +1,65 @@
 {
-  "start_urls": [
-    "https://example.com/gallery"
-  ],
+  "site_id": "example_open_access_source",
+  "access_mode": "download",
+  "source_type": "api",
   "allowed_domains": [
     "example.com",
     "static.example.com"
   ],
-  "output_dir": "runtime/reference_scrape/example_gallery",
+  "output_dir": "runtime/reference_scrape/example_open_access_source",
   "request_delay_seconds": 1.0,
+  "max_requests_per_minute": 20,
   "timeout_seconds": 20,
-  "max_pages": 100,
-  "max_images": 300,
+  "max_pages": 20,
+  "max_images": 50,
   "min_image_bytes": 50000,
   "respect_robots_txt": true,
+  "requires_open_license": true,
+  "license_allow_patterns": [
+    "cc0",
+    "cc by 4\\.0",
+    "public domain",
+    "open access"
+  ],
+  "license_deny_patterns": [
+    "all rights reserved",
+    "restricted",
+    "copyright"
+  ],
+  "follow_page_links": false,
+  "html_record_allow_patterns": [],
+  "html_metadata_fields": {
+    "title": [
+      "og:title",
+      "__page_title__"
+    ],
+    "rights": [
+      "rights",
+      "dc.rights"
+    ],
+    "rights_url": [
+      "__license_href__"
+    ],
+    "object_url": [
+      "__canonical_url__",
+      "__page_url__"
+    ]
+  },
+  "html_regex_fields": {
+    "catalog_number": [
+      "(?:Object\\s*No\\.?|Accession\\s*No\\.?)\\s*[:：]?\\s*([A-Za-z0-9\\-\\.]+)"
+    ]
+  },
+  "html_download_link_patterns": [
+    "download",
+    "iiif",
+    "\\.(jpg|jpeg|png|tif|tiff|webp)($|\\?)"
+  ],
   "image_filter": {
     "text_density": {
-      "enabled": true,
-      "max_score": 0.58,
-      "min_components": 80
+      "enabled": false,
+      "max_score": 0.78,
+      "min_components": 140
     },
     "clip": {
       "enabled": false,
@@ -34,31 +76,54 @@
       "min_margin": 0.05
     }
   },
-  "page_url_allow_patterns": [
-    "/gallery",
-    "/artwork/",
-    "/page/"
-  ],
-  "page_url_deny_patterns": [
-    "/login",
-    "/signup",
-    "/search",
-    "avatar",
-    "icon",
-    "logo"
-  ],
   "image_url_allow_patterns": [
-    "\\.jpg$",
-    "\\.jpeg$",
-    "\\.png$",
-    "\\.webp$"
+    "static\\.example\\.com/.+\\.(jpg|jpeg|png|webp|tif|tiff)($|\\?)"
   ],
   "image_url_deny_patterns": [
-    "avatar",
     "icon",
     "logo",
-    "thumb",
-    "thumbnail"
+    "thumb"
+  ],
+  "download_jobs": [
+    {
+      "name": "example_open_access_feed",
+      "mode": "json_records",
+      "start_url": "https://example.com/api/open-collection",
+      "list_path": "items[]",
+      "image_fields": [
+        "image.url"
+      ],
+      "record_text_fields": [
+        "title",
+        "medium",
+        "category"
+      ],
+      "record_allow_patterns": [
+        "painting",
+        "figure",
+        "landscape",
+        "bird",
+        "flower"
+      ],
+      "record_deny_patterns": [
+        "calligraphy",
+        "manuscript",
+        "text"
+      ],
+      "metadata_fields": {
+        "record_id": "id",
+        "title": "title",
+        "artist": "creator",
+        "catalog_number": "accessionNumber",
+        "object_url": "objectUrl",
+        "rights": "license",
+        "rights_url": "licenseUrl"
+      },
+      "license_text_fields": [
+        "license"
+      ],
+      "max_requests": 1
+    }
   ],
   "headers": {
     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"

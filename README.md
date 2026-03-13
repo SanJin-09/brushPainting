@@ -104,13 +104,25 @@ uvicorn services.api.app.main:app --reload --port 8000
 ./scripts/e2e_mock.sh
 ```
 
-## 参考图抓取脚本
+## 合规参考图采集脚本
 
-当你需要先批量收集工笔参考图，再人工审核时，可以使用：
+当你需要先批量收集工笔参考图，再人工审核时，默认使用“合规白名单开放源批处理”：
+
+默认用途限定为：`仅内部训练与研究`。仓库内置批处理不会对授权不明站点自动下载原图，也不面向原图或数据集对外分发。
 
 ```bash
-python3 scripts/scrape_reference_images.py \
-  --config scripts/scrape_reference_images.example.json \
+python3 scripts/run_reference_scrape_batch.py \
+  --batch scripts/reference_scrape_batches/official_zero_auth_all.json \
+  --output-root runtime/reference_scrape/official_zero_auth_all \
+  --verbose
+```
+
+如果你只想优先跑彩色工笔倾向更强的一组站点：
+
+```bash
+python3 scripts/run_reference_scrape_batch.py \
+  --batch scripts/reference_scrape_batches/official_zero_auth_colored_priority.json \
+  --output-root runtime/reference_scrape/official_colored_priority \
   --verbose
 ```
 
@@ -125,18 +137,17 @@ pip install httpx
 - `text_density` 需要 `opencv-python-headless` 和 `numpy`
 - `clip` 还需要 `torch`、`transformers` 和 `Pillow`
 
-仓库内置了几组可直接跑的站点配置：
+仓库内置的合规站点配置分两类：
 
-- `scripts/reference_scrape_configs/wikimedia_qiu_ying.json`
-- `scripts/reference_scrape_configs/met_qiu_ying_api.json`
-- `scripts/reference_scrape_configs/cleveland_qiu_ying_api.json`
-- `scripts/reference_scrape_configs/npm_open_data_pages.json`
+- 自动下载明确开放授权图片：`met_open_access_download.json`、`cleveland_open_access_download.json`、`npm_open_license_download.json`
+- 仅采集元数据，不自动下载原图：`dpm_digicol_metadata.json`、`dpm_minghuaji_metadata.json`、`smithsonian_nmaa_metadata.json`、`lacma_collections_metadata.json`、`british_museum_collection_metadata.json`
 
-例如先抓一轮 Wikimedia Commons：
+单站运行示例：
 
 ```bash
 python3 scripts/scrape_reference_images.py \
-  --config scripts/reference_scrape_configs/wikimedia_qiu_ying.json \
+  --config scripts/reference_scrape_configs/met_open_access_download.json \
+  --output-dir runtime/reference_scrape/met_open_access_run_01 \
   --verbose
 ```
 
@@ -144,9 +155,9 @@ python3 scripts/scrape_reference_images.py \
 
 ```bash
 python3 scripts/filter_downloaded_reference_images.py \
-  --config scripts/reference_scrape_configs/met_qiu_ying_api.json \
-  --input-dir runtime/reference_scrape/filtered_met_run \
-  --move-rejected-to runtime/reference_scrape/filtered_met_run_rejected \
+  --config scripts/reference_scrape_configs/met_open_access_download.json \
+  --input-dir runtime/reference_scrape/met_open_access_run_01 \
+  --move-rejected-to runtime/reference_scrape/met_open_access_run_01_rejected \
   --verbose
 ```
 
@@ -154,15 +165,14 @@ python3 scripts/filter_downloaded_reference_images.py \
 
 脚本特点：
 
-- 读取 JSON 配置，限制允许抓取的域名
-- 同时支持 HTML 页面递归抓取和官方 JSON API 种子源
-- 支持对 API 记录按标题、分类、媒材、标签等元数据做自动筛选
-- 支持图像级第二层筛选：默认可用的文字密度启发式，可选 CLIP 零样本打分
-- 默认遵守 `robots.txt`
-- 支持页面链接递归抓取、图片直链下载、按 URL 规则过滤
-- 自动去重，并输出 `manifest.jsonl` 与 `rejected_manifest.jsonl` 供后续人工审核
+- 读取 JSON 配置，按站点声明 `access_mode`、授权规则和访问节流
+- 仅对白名单开放源下载图片，其余官方站点只做元数据发现
+- 只走官方 API / Open Data / IIIF / 官方对象页，不做全站递归抓取
+- 默认遵守 `robots.txt`，不处理登录、验证码或反爬绕过
+- 下载记录强制写入 `site_id`、`object_url`、`rights`、`rights_url`、`license_check_status`
+- 自动去重，并输出 `manifest.jsonl`、`rejected_manifest.jsonl` 与 `summary.json`
+- 批处理入口会生成 `batch_summary.json`，便于人工版权复核
 - 离线后处理脚本会输出 `offline_kept_manifest.jsonl` 与 `offline_rejected_manifest.jsonl`
-- 不处理登录、验证码、反爬绕过；使用前请确认站点条款与图片授权
 
 ## 说明
 

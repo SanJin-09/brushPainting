@@ -1,0 +1,87 @@
+{
+  "site_id": "dpm_digicol_metadata",
+  "access_mode": "metadata_only",
+  "source_type": "html",
+  "start_urls": [
+    "https://digicol.dpm.org.cn/"
+  ],
+  "allowed_domains": [
+    "digicol.dpm.org.cn",
+    "dpm.org.cn"
+  ],
+  "output_dir": "runtime/reference_scrape/dpm_digicol_metadata",
+  "request_delay_seconds": 2.0,
+  "max_requests_per_minute": 12,
+  "timeout_seconds": 25,
+  "max_pages": 80,
+  "max_images": 0,
+  "min_image_bytes": 100000,
+  "respect_robots_txt": true,
+  "requires_open_license": false,
+  "follow_page_links": true,
+  "page_url_allow_patterns": [
+    "^https://digicol\\.dpm\\.org\\.cn/?$",
+    "digicol\\.dpm\\.org\\.cn/.+"
+  ],
+  "page_url_deny_patterns": [
+    "login",
+    "/search",
+    "/Search"
+  ],
+  "html_record_allow_patterns": [
+    "digicol\\.dpm\\.org\\.cn/.+"
+  ],
+  "html_download_link_patterns": [
+    "download",
+    "iiif",
+    "image"
+  ],
+  "html_metadata_fields": {
+    "title": [
+      "og:title",
+      "twitter:title",
+      "__page_title__"
+    ],
+    "artist": [
+      "author",
+      "dc.creator",
+      "parsely-author"
+    ],
+    "rights": [
+      "rights",
+      "copyright",
+      "dc.rights"
+    ],
+    "rights_url": [
+      "__license_href__"
+    ],
+    "object_url": [
+      "__canonical_url__",
+      "__page_url__"
+    ]
+  },
+  "html_regex_fields": {
+    "catalog_number": [
+      "(?:館藏號|馆藏号|文物號|文物号|Object\\s*No\\.?|Accession\\s*No\\.?)\\s*[:：]?\\s*([A-Za-z0-9\\-\\.]+)"
+    ]
+  },
+  "image_filter": {
+    "text_density": {
+      "enabled": false,
+      "max_score": 0.78,
+      "min_components": 140
+    },
+    "clip": {
+      "enabled": false,
+      "model_name_or_path": "openai/clip-vit-base-patch32",
+      "local_files_only": false,
+      "positive_prompts": [],
+      "negative_prompts": [],
+      "min_positive_score": 0.3,
+      "min_margin": 0.05
+    }
+  },
+  "headers": {
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"
+  }
+}

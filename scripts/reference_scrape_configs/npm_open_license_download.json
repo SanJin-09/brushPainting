@@ -1,0 +1,156 @@
+{
+  "site_id": "npm_open_license",
+  "access_mode": "download",
+  "source_type": "api",
+  "allowed_domains": [
+    "npm.gov.tw",
+    "digitalarchive.npm.gov.tw",
+    "odapi.npm.gov.tw"
+  ],
+  "output_dir": "runtime/reference_scrape/npm_open_license",
+  "request_delay_seconds": 1.5,
+  "max_requests_per_minute": 15,
+  "timeout_seconds": 25,
+  "max_pages": 80,
+  "max_images": 120,
+  "min_image_bytes": 100000,
+  "respect_robots_txt": true,
+  "requires_open_license": true,
+  "license_allow_patterns": [
+    "cc0",
+    "cc by 4\\.0",
+    "creative commons"
+  ],
+  "license_deny_patterns": [
+    "all rights reserved",
+    "copyright",
+    "restricted"
+  ],
+  "follow_page_links": false,
+  "page_url_allow_patterns": [
+    "digitalarchive\\.npm\\.gov\\.tw",
+    "npm\\.gov\\.tw/.+/Collection/.+",
+    "npm\\.gov\\.tw/.+/opendata/Pub/Detail"
+  ],
+  "page_url_deny_patterns": [
+    "/Search",
+    "/search",
+    "login"
+  ],
+  "image_url_deny_patterns": [
+    "icon",
+    "logo",
+    "thumb"
+  ],
+  "html_download_link_patterns": [
+    "Image/Stream\\?ImageId=",
+    "iiif",
+    "download"
+  ],
+  "html_metadata_fields": {
+    "title": [
+      "og:title",
+      "twitter:title",
+      "__page_title__"
+    ],
+    "artist": [
+      "dc.creator",
+      "author"
+    ],
+    "catalog_number": [
+      "dc.identifier"
+    ],
+    "rights": [
+      "dc.rights",
+      "rights",
+      "copyright"
+    ],
+    "rights_url": [
+      "__license_href__"
+    ],
+    "object_url": [
+      "__canonical_url__",
+      "__page_url__"
+    ]
+  },
+  "html_regex_fields": {
+    "rights": [
+      "(CC0[^\\n]{0,120})",
+      "(CC\\s*BY\\s*4\\.0[^\\n]{0,120})",
+      "(Creative\\s+Commons[^\\n]{0,120})"
+    ],
+    "catalog_number": [
+      "(?:館藏號|馆藏号|文物統一編號|文物统一编号|Object\\s*No\\.?|Accession\\s*No\\.?)\\s*[:：]?\\s*([A-Za-z0-9\\-\\.]+)"
+    ]
+  },
+  "image_filter": {
+    "text_density": {
+      "enabled": false,
+      "max_score": 0.78,
+      "min_components": 140
+    },
+    "clip": {
+      "enabled": false,
+      "model_name_or_path": "openai/clip-vit-base-patch32",
+      "local_files_only": false,
+      "positive_prompts": [
+        "a traditional Chinese gongbi painting of figures or landscape",
+        "a colored Chinese bird-and-flower or court painting"
+      ],
+      "negative_prompts": [
+        "a page of Chinese calligraphy or handwritten manuscript",
+        "a scanned book page full of text"
+      ],
+      "min_positive_score": 0.3,
+      "min_margin": 0.05
+    }
+  },
+  "download_jobs": [
+    {
+      "name": "npm_open_license_candidates",
+      "mode": "json_records",
+      "start_url": "https://odapi.npm.gov.tw/data/open/api/v1/digitalCollection/calligraphicModelBooks.json",
+      "list_path": "[]",
+      "page_fields": [
+        "url"
+      ],
+      "record_text_fields": [
+        "title",
+        "description",
+        "category",
+        "author"
+      ],
+      "record_allow_patterns": [
+        "painting",
+        "landscape",
+        "figure",
+        "bird",
+        "flower",
+        "court",
+        "畫",
+        "绘",
+        "山水",
+        "人物",
+        "花鳥",
+        "花鸟"
+      ],
+      "record_deny_patterns": [
+        "calligraphy",
+        "manuscript",
+        "法帖",
+        "书法",
+        "書法",
+        "rubbing"
+      ],
+      "metadata_fields": {
+        "record_id": "id",
+        "title": "title",
+        "object_url": "url"
+      },
+      "max_requests": 1
+    }
+  ],
+  "headers": {
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"
+  }
+}
