@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { createSession } from "../lib/api";
 
@@ -29,6 +30,9 @@ export default function UploadPage() {
 
   return (
     <div className="page upload-page">
+      <div className="topbar">
+        <Link to="/reference-review">前往人工筛图</Link>
+      </div>
       <h1>工笔重绘工作台</h1>
       <p>上传原图后先统一整图风格化，再针对不满意区域做掩码局部重绘。</p>
 

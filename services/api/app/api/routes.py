@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 from PIL import Image
 from sqlalchemy.orm import Session
 
@@ -12,6 +13,11 @@ from services.api.app.db.database import get_db
 from services.api.app.models.entities import Job
 from services.api.app.models.enums import SessionStatus
 from services.api.app.schemas.job import JobRead
+from services.api.app.schemas.reference_review import (
+    ReferenceReviewActionRequest,
+    ReferenceReviewRead,
+    ReferenceReviewUndoRequest,
+)
 from services.api.app.schemas.session import (
     EditRequest,
     ExportResponse,
@@ -24,6 +30,12 @@ from services.api.app.schemas.session import (
 )
 from services.api.app.services.errors import ServiceError
 from services.api.app.services.job_service import create_job, dispatch_job
+from services.api.app.services.reference_review_service import (
+    apply_review_action,
+    get_review_state,
+    resolve_review_image_path,
+    undo_review_action,
+)
 from services.api.app.services.session_service import (
     adopt_version,
     create_session,
@@ -105,6 +117,42 @@ def render_session_endpoint(session_id: str, body: RenderRequest, db: Session = 
     )
     dispatch_job("services.worker.tasks.render_full", job.id, session_id, seed)
     return job
+
+
+@router.get("/reference-review", response_model=ReferenceReviewRead)
+def get_reference_review_endpoint(directory: str = Query(..., min_length=1)):
+    try:
+        return get_review_state(directory)
+    except ServiceError as exc:
+        _raise_service_error(exc)
+
+
+@router.get("/reference-review/image")
+def get_reference_review_image_endpoint(
+    directory: str = Query(..., min_length=1),
+    relative_path: str = Query(..., min_length=1),
+):
+    try:
+        path = resolve_review_image_path(directory, relative_path)
+    except ServiceError as exc:
+        _raise_service_error(exc)
+    return FileResponse(path)
+
+
+@router.post("/reference-review/action", response_model=ReferenceReviewRead)
+def reference_review_action_endpoint(body: ReferenceReviewActionRequest):
+    try:
+        return apply_review_action(body.directory, body.relative_path, body.action)
+    except ServiceError as exc:
+        _raise_service_error(exc)
+
+
+@router.post("/reference-review/undo", response_model=ReferenceReviewRead)
+def reference_review_undo_endpoint(body: ReferenceReviewUndoRequest):
+    try:
+        return undo_review_action(body.directory)
+    except ServiceError as exc:
+        _raise_service_error(exc)
 
 
 @router.post("/sessions/{session_id}/mask-assist", response_model=MaskAssistResponse)

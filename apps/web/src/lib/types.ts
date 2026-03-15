@@ -45,3 +45,22 @@ export type Job = {
   created_at: string;
   updated_at: string;
 };
+
+export type ReferenceReviewImage = {
+  file_name: string;
+  relative_path: string;
+};
+
+export type ReferenceReviewState = {
+  directory: string;
+  current: ReferenceReviewImage | null;
+  pending_count: number;
+  keep_count: number;
+  discard_count: number;
+  reviewed_count: number;
+  total_count: number;
+  history_count: number;
+  keep_hotkey: string;
+  discard_hotkey: string;
+  undo_hotkey: string;
+};

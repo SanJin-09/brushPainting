@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { Job, MaskAssistResult, SessionDetail } from "./types";
+import type { Job, MaskAssistResult, ReferenceReviewState, SessionDetail } from "./types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api/v1").replace(/\/+$/, "");
 
@@ -65,4 +65,28 @@ export async function exportSession(sessionId: string) {
 export async function getJob(jobId: string) {
   const { data } = await api.get<Job>(`/jobs/${jobId}`);
   return data;
+}
+
+export async function getReferenceReview(directory: string) {
+  const { data } = await api.get<ReferenceReviewState>("/reference-review", { params: { directory } });
+  return data;
+}
+
+export async function applyReferenceReviewAction(payload: {
+  directory: string;
+  relative_path: string;
+  action: "keep" | "discard";
+}) {
+  const { data } = await api.post<ReferenceReviewState>("/reference-review/action", payload);
+  return data;
+}
+
+export async function undoReferenceReview(directory: string) {
+  const { data } = await api.post<ReferenceReviewState>("/reference-review/undo", { directory });
+  return data;
+}
+
+export function getReferenceReviewImageUrl(directory: string, relativePath: string) {
+  const params = new URLSearchParams({ directory, relative_path: relativePath });
+  return `${API_BASE}/reference-review/image?${params.toString()}`;
 }

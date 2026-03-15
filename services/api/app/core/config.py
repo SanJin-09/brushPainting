@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     media_root: str = Field(default="./runtime/media", alias="MEDIA_ROOT")
     public_media_base: str = Field(default="http://localhost:8000/media", alias="PUBLIC_MEDIA_BASE")
+    reference_scrape_root: str = Field(default="./runtime/reference_scrape", alias="REFERENCE_SCRAPE_ROOT")
 
     style_config_path: str = Field(default="./configs/styles/gongbi_default.yaml", alias="STYLE_CONFIG_PATH")
     default_style_id: str = Field(default="gongbi_default", alias="DEFAULT_STYLE_ID")
@@ -44,9 +45,14 @@ class Settings(BaseSettings):
     def media_root_path(self) -> Path:
         return Path(self.media_root).resolve()
 
+    @property
+    def reference_scrape_root_path(self) -> Path:
+        return Path(self.reference_scrape_root).resolve()
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     settings = Settings()
     settings.media_root_path.mkdir(parents=True, exist_ok=True)
+    settings.reference_scrape_root_path.mkdir(parents=True, exist_ok=True)
     return settings
