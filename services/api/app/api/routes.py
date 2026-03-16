@@ -131,9 +131,10 @@ def get_reference_review_endpoint(directory: str = Query(..., min_length=1)):
 def get_reference_review_image_endpoint(
     directory: str = Query(..., min_length=1),
     relative_path: str = Query(..., min_length=1),
+    max_edge: int | None = Query(default=None, ge=256, le=4096),
 ):
     try:
-        path = resolve_review_image_path(directory, relative_path)
+        path = resolve_review_image_path(directory, relative_path, max_edge=max_edge)
     except ServiceError as exc:
         _raise_service_error(exc)
     return FileResponse(path)

@@ -6,22 +6,28 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
+from PIL import Image, ImageOps
+
 from services.api.app.core.config import get_settings
 from services.api.app.services.errors import ConflictError, NotFoundError, ValidationError
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff"}
 KEEP_DIR_NAME = "_manual_keep"
 DISCARD_DIR_NAME = "_manual_discard"
+PREVIEW_DIR_NAME = "_manual_preview_cache"
 STATE_FILE_NAME = "_manual_review_state.json"
 SPECIAL_DIRS = {
     KEEP_DIR_NAME,
     DISCARD_DIR_NAME,
+    PREVIEW_DIR_NAME,
     "_offline_filter_reports",
     "_manual_filter_reports",
 }
 KEEP_HOTKEY = "K"
 DISCARD_HOTKEY = "D"
 UNDO_HOTKEY = "Z"
+PREVIEW_MAX_EDGE = 1600
+PREVIEW_JPEG_QUALITY = 82
 
 
 def get_review_state(directory: str) -> dict[str, Any]:
@@ -89,7 +95,7 @@ def undo_review_action(directory: str) -> dict[str, Any]:
     return _build_review_state(review_dir, normalized_directory)
 
 
-def resolve_review_image_path(directory: str, relative_path: str) -> Path:
+def resolve_review_image_path(directory: str, relative_path: str, *, max_edge: int | None = None) -> Path:
     review_dir, _ = _resolve_review_dir(directory)
     normalized_relative_path = _normalize_relative_path(relative_path)
     image_path = (review_dir / Path(normalized_relative_path)).resolve()
@@ -99,6 +105,9 @@ def resolve_review_image_path(directory: str, relative_path: str) -> Path:
         raise ValidationError("不支持的图片格式")
     if not image_path.is_file():
         raise NotFoundError("图片不存在")
+    if max_edge is not None:
+        max_edge = _validate_preview_max_edge(max_edge)
+        return _ensure_preview(review_dir, image_path, max_edge=max_edge)
     return image_path
 
 
@@ -109,14 +118,23 @@ def _build_review_state(review_dir: Path, normalized_directory: str) -> dict[str
     state = _load_state(review_dir)
     history = state.setdefault("history", [])
     current = None
+    next_item = None
     if pending:
         current = {
             "file_name": Path(pending[0]).name,
             "relative_path": pending[0],
         }
+        _prewarm_preview(review_dir, pending[0], max_edge=PREVIEW_MAX_EDGE)
+    if len(pending) > 1:
+        next_item = {
+            "file_name": Path(pending[1]).name,
+            "relative_path": pending[1],
+        }
+        _prewarm_preview(review_dir, pending[1], max_edge=PREVIEW_MAX_EDGE)
     return {
         "directory": normalized_directory,
         "current": current,
+        "next": next_item,
         "pending_count": len(pending),
         "keep_count": len(keep),
         "discard_count": len(discard),
@@ -126,6 +144,7 @@ def _build_review_state(review_dir: Path, normalized_directory: str) -> dict[str
         "keep_hotkey": KEEP_HOTKEY,
         "discard_hotkey": DISCARD_HOTKEY,
         "undo_hotkey": UNDO_HOTKEY,
+        "preview_max_edge": PREVIEW_MAX_EDGE,
     }
 
 
@@ -207,3 +226,40 @@ def _load_state(review_dir: Path) -> dict[str, Any]:
 def _save_state(review_dir: Path, state: dict[str, Any]) -> None:
     path = review_dir / STATE_FILE_NAME
     path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _validate_preview_max_edge(max_edge: int) -> int:
+    if max_edge < 256 or max_edge > 4096:
+        raise ValidationError("预览图尺寸超出允许范围")
+    return max_edge
+
+
+def _prewarm_preview(review_dir: Path, relative_path: str, *, max_edge: int) -> None:
+    source_path = (review_dir / Path(relative_path)).resolve()
+    if not source_path.exists():
+        return
+    try:
+        _ensure_preview(review_dir, source_path, max_edge=max_edge)
+    except Exception:
+        return
+
+
+def _ensure_preview(review_dir: Path, source_path: Path, *, max_edge: int) -> Path:
+    preview_root = review_dir / PREVIEW_DIR_NAME / str(max_edge)
+    relative_path = source_path.relative_to(review_dir)
+    preview_path = (preview_root / relative_path).with_suffix(".jpg")
+    preview_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if preview_path.exists() and preview_path.stat().st_mtime >= source_path.stat().st_mtime:
+        return preview_path
+
+    with Image.open(source_path) as image:
+        prepared = ImageOps.exif_transpose(image)
+        if prepared.mode not in {"RGB", "L"}:
+            prepared = prepared.convert("RGB")
+        elif prepared.mode == "L":
+            prepared = prepared.convert("RGB")
+        preview = prepared.copy()
+        preview.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
+        preview.save(preview_path, format="JPEG", quality=PREVIEW_JPEG_QUALITY, optimize=True)
+    return preview_path

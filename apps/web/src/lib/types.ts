@@ -54,6 +54,7 @@ export type ReferenceReviewImage = {
 export type ReferenceReviewState = {
   directory: string;
   current: ReferenceReviewImage | null;
+  next: ReferenceReviewImage | null;
   pending_count: number;
   keep_count: number;
   discard_count: number;
@@ -63,4 +64,5 @@ export type ReferenceReviewState = {
   keep_hotkey: string;
   discard_hotkey: string;
   undo_hotkey: string;
+  preview_max_edge: number;
 };

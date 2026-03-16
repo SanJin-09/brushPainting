@@ -13,6 +13,7 @@ class ReferenceReviewImageRead(BaseModel):
 class ReferenceReviewRead(BaseModel):
     directory: str
     current: ReferenceReviewImageRead | None
+    next: ReferenceReviewImageRead | None
     pending_count: int
     keep_count: int
     discard_count: int
@@ -22,6 +23,7 @@ class ReferenceReviewRead(BaseModel):
     keep_hotkey: str
     discard_hotkey: str
     undo_hotkey: str
+    preview_max_edge: int
 
 
 class ReferenceReviewActionRequest(BaseModel):

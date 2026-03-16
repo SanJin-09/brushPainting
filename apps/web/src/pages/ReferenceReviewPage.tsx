@@ -61,7 +61,14 @@ export default function ReferenceReviewPage() {
     if (!review?.current) {
       return null;
     }
-    return getReferenceReviewImageUrl(review.directory, review.current.relative_path);
+    return getReferenceReviewImageUrl(review.directory, review.current.relative_path, review.preview_max_edge);
+  }, [review]);
+
+  const nextImageUrl = useMemo(() => {
+    if (!review?.next) {
+      return null;
+    }
+    return getReferenceReviewImageUrl(review.directory, review.next.relative_path, review.preview_max_edge);
   }, [review]);
 
   const applyAction = async (action: "keep" | "discard") => {
@@ -125,6 +132,15 @@ export default function ReferenceReviewPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [busy, review]);
 
+  useEffect(() => {
+    if (!nextImageUrl) {
+      return;
+    }
+    const image = new Image();
+    image.decoding = "async";
+    image.src = nextImageUrl;
+  }, [nextImageUrl]);
+
   return (
     <div className="page review-page">
       <div className="topbar">
@@ -173,7 +189,14 @@ export default function ReferenceReviewPage() {
           {review && review.current && currentImageUrl ? (
             <>
               <div className="review-image-wrap">
-                <img className="review-image" src={currentImageUrl} alt={review.current.file_name} />
+                <img
+                  key={review.current.relative_path}
+                  className="review-image"
+                  src={currentImageUrl}
+                  alt={review.current.file_name}
+                  loading="eager"
+                  decoding="async"
+                />
               </div>
               <div className="review-caption">
                 <strong>{review.current.file_name}</strong>

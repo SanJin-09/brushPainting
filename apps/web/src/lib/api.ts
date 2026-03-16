@@ -86,7 +86,10 @@ export async function undoReferenceReview(directory: string) {
   return data;
 }
 
-export function getReferenceReviewImageUrl(directory: string, relativePath: string) {
+export function getReferenceReviewImageUrl(directory: string, relativePath: string, maxEdge?: number) {
   const params = new URLSearchParams({ directory, relative_path: relativePath });
+  if (maxEdge) {
+    params.set("max_edge", String(maxEdge));
+  }
   return `${API_BASE}/reference-review/image?${params.toString()}`;
 }
