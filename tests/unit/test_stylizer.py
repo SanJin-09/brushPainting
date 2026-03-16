@@ -1,3 +1,6 @@
+import sys
+import types
+
 import numpy as np
 from PIL import Image
 
@@ -44,3 +47,27 @@ def test_inpaint_region_only_changes_mask_band():
     assert diff[:, :20].sum() == 0
     assert diff[:, 44:].sum() == 0
     assert diff[20:44, 20:44].sum() > 0
+
+
+def test_zimage_backend_routes_for_zimage_and_diffusers_alias(monkeypatch):
+    calls: list[tuple[str, int, float]] = []
+    fake_backend = types.ModuleType("model_runtime.zimage_backend")
+
+    def fake_style_image(source_image: Image.Image, *, seed: int, controlnet_weight: float) -> Image.Image:
+        calls.append(("style", seed, controlnet_weight))
+        return source_image.copy()
+
+    fake_backend.style_image_zimage = fake_style_image
+    monkeypatch.setitem(sys.modules, "model_runtime.zimage_backend", fake_backend)
+
+    image = Image.new("RGB", (32, 24), "white")
+
+    monkeypatch.setenv("MODEL_BACKEND", "zimage")
+    result = style_image(image, seed=11, controlnet_weight=0.4)
+    assert result.size == image.size
+
+    monkeypatch.setenv("MODEL_BACKEND", "diffusers")
+    result = style_image(image, seed=12, controlnet_weight=0.9)
+    assert result.size == image.size
+
+    assert calls == [("style", 11, 0.4), ("style", 12, 0.9)]
