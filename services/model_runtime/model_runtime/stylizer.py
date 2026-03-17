@@ -78,15 +78,17 @@ def style_image(
     seed: int,
     controlnet_weight: float,
 ) -> Image.Image:
-    backend = os.getenv("MODEL_BACKEND", "mock").lower()
-    if backend == "diffusers":
-        from model_runtime.diffusers_backend import style_image_diffusers
+    backend = os.getenv("MODEL_BACKEND", "zimage").lower()
+    if backend == "zimage":
+        from model_runtime.zimage_backend import style_image_zimage
 
-        return style_image_diffusers(
+        return style_image_zimage(
             source_image,
             seed=seed,
             controlnet_weight=controlnet_weight,
         )
+    if backend != "mock":
+        raise RuntimeError(f"Unsupported MODEL_BACKEND: {backend}")
 
     rgb = _to_cv_rgb(source_image)
     styled = _stylize_rgb(rgb, seed=seed, controlnet_weight=controlnet_weight)
@@ -108,11 +110,11 @@ def inpaint_region(
     mask_feather: int,
     prompt_override: str | None = None,
 ) -> Image.Image:
-    backend = os.getenv("MODEL_BACKEND", "mock").lower()
-    if backend == "diffusers":
-        from model_runtime.diffusers_backend import inpaint_region_diffusers
+    backend = os.getenv("MODEL_BACKEND", "zimage").lower()
+    if backend == "zimage":
+        from model_runtime.zimage_backend import inpaint_region_zimage
 
-        return inpaint_region_diffusers(
+        return inpaint_region_zimage(
             current_image,
             source_image,
             mask,
@@ -126,6 +128,8 @@ def inpaint_region(
             mask_feather=mask_feather,
             prompt_override=prompt_override,
         )
+    if backend != "mock":
+        raise RuntimeError(f"Unsupported MODEL_BACKEND: {backend}")
 
     current_rgb = _to_cv_rgb(current_image)
     source_rgb = _to_cv_rgb(source_image)

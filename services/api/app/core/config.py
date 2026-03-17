@@ -24,22 +24,21 @@ class Settings(BaseSettings):
     style_config_path: str = Field(default="./configs/styles/gongbi_default.yaml", alias="STYLE_CONFIG_PATH")
     default_style_id: str = Field(default="gongbi_default", alias="DEFAULT_STYLE_ID")
 
-    sdxl_steps: int = Field(default=28, alias="SDXL_STEPS")
-    sdxl_cfg: float = Field(default=6.5, alias="SDXL_CFG")
-    sdxl_size: int = Field(default=1024, alias="SDXL_SIZE")
-    style_denoise: float = Field(default=0.55, alias="STYLE_DENOISE")
-    controlnet_weight: float = Field(default=0.7, alias="CONTROLNET_WEIGHT")
-    inpaint_steps: int = Field(default=24, alias="INPAINT_STEPS")
-    inpaint_denoise: float = Field(default=0.45, alias="INPAINT_DENOISE")
+    z_image_model_path: str = Field(default="./runtime/models/z_image", alias="Z_IMAGE_MODEL_PATH")
+    z_image_steps: int = Field(default=32, alias="Z_IMAGE_STEPS")
+    z_image_size: int = Field(default=1536, alias="Z_IMAGE_SIZE")
+    z_image_cfg: float = Field(default=4.0, alias="Z_IMAGE_CFG")
+    z_image_img2img_strength: float = Field(default=0.6, alias="Z_IMAGE_IMG2IMG_STRENGTH")
+    z_image_inpaint_strength: float = Field(default=1.0, alias="Z_IMAGE_INPAINT_STRENGTH")
     inpaint_context_pad: int = Field(default=96, alias="INPAINT_CONTEXT_PAD")
     inpaint_mask_feather: int = Field(default=16, alias="INPAINT_MASK_FEATHER")
     mask_assist_backend: str = Field(default="mock", alias="MASK_ASSIST_BACKEND")
     sam_model_path: str = Field(default="./runtime/models/sam/sam_vit_b.pth", alias="SAM_MODEL_PATH")
 
     model_device: str = Field(default="cpu", alias="MODEL_DEVICE")
-    model_precision: str = Field(default="fp16", alias="MODEL_PRECISION")
+    model_precision: str = Field(default="bf16", alias="MODEL_PRECISION")
     model_root: str = Field(default="./runtime/models", alias="MODEL_ROOT")
-    model_backend: str = Field(default="mock", alias="MODEL_BACKEND")
+    model_backend: str = Field(default="zimage", alias="MODEL_BACKEND")
 
     @property
     def media_root_path(self) -> Path:

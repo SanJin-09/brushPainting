@@ -21,20 +21,13 @@ prompt_profile:
     gritty realism, excessive contrast, oversharpening, over-detailed photo texture,
     text, watermark, logo, signature, frame border, noisy artifacts.
 render:
-  sdxl_steps: 28
-  sdxl_cfg: 6.5
-  sdxl_size: 1024
-  controlnet_weight: 0.7
-  inpaint_steps: 24
-  inpaint_denoise: 0.45
-lora:
-  name: gongbi_lora_v1
-  path: /models/lora/gongbi_lora_v1.safetensors
-controlnet:
-  canny_path: /models/controlnet/sdxl_canny
+  z_image_steps: 32
+  z_image_size: 1536
+  z_image_cfg: 4.0
+  z_image_img2img_strength: 0.6
+  z_image_inpaint_strength: 1.0
 models:
-  sdxl_base_path: /models/sdxl/base
-  sdxl_inpaint_path: /models/sdxl/inpaint
+  z_image_model_path: /models/z_image
 metadata:
   version: 1
   locked: true

@@ -1,10 +1,14 @@
+import sys
+import types
+
 import numpy as np
 from PIL import Image
 
 from model_runtime.stylizer import inpaint_region, style_image
 
 
-def test_style_image_mock_is_deterministic():
+def test_style_image_mock_is_deterministic(monkeypatch):
+    monkeypatch.setenv("MODEL_BACKEND", "mock")
     image = Image.new("RGB", (64, 48), "white")
 
     first = style_image(image, seed=2026, controlnet_weight=0.7)
@@ -14,7 +18,8 @@ def test_style_image_mock_is_deterministic():
     assert np.array_equal(np.array(first), np.array(second))
 
 
-def test_inpaint_region_only_changes_mask_band():
+def test_inpaint_region_only_changes_mask_band(monkeypatch):
+    monkeypatch.setenv("MODEL_BACKEND", "mock")
     source = Image.new("RGB", (64, 64), "white")
     current = Image.new("RGB", (64, 64), "#d8c3a2")
     mask = np.zeros((64, 64), dtype=np.uint8)
@@ -44,3 +49,22 @@ def test_inpaint_region_only_changes_mask_band():
     assert diff[:, :20].sum() == 0
     assert diff[:, 44:].sum() == 0
     assert diff[20:44, 20:44].sum() > 0
+
+
+def test_style_image_routes_to_zimage_backend(monkeypatch):
+    calls: list[tuple[int, float]] = []
+    fake_backend = types.ModuleType("model_runtime.zimage_backend")
+
+    def fake_style_image(source_image: Image.Image, *, seed: int, controlnet_weight: float) -> Image.Image:
+        calls.append((seed, controlnet_weight))
+        return source_image.copy()
+
+    fake_backend.style_image_zimage = fake_style_image
+    monkeypatch.setitem(sys.modules, "model_runtime.zimage_backend", fake_backend)
+    monkeypatch.setenv("MODEL_BACKEND", "zimage")
+
+    image = Image.new("RGB", (32, 24), "white")
+    result = style_image(image, seed=11, controlnet_weight=1.0)
+
+    assert result.size == image.size
+    assert calls == [(11, 1.0)]

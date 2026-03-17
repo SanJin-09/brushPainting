@@ -46,23 +46,14 @@ docker compose -f infra/docker/docker-compose.yml -f infra/docker/docker-compose
 
 默认会把宿主机模型目录挂载到容器 `/models`：
 
-- `SDXL_BASE_MODEL_PATH=/models/sdxl/base`
-- `SDXL_INPAINT_MODEL_PATH=/models/sdxl/inpaint`
-- `SDXL_CONTROLNET_CANNY_PATH=/models/controlnet/sdxl_canny`
-- `SDXL_LORA_PATH=/models/lora/gongbi_lora_v1.safetensors`
+- `Z_IMAGE_MODEL_PATH=/models/z_image`
 - `SAM_MODEL_PATH=/models/sam/sam_vit_b.pth`
 
 建议目录结构：
 
 ```text
 runtime/models/
-├── sdxl/
-│   ├── base/
-│   └── inpaint/
-├── controlnet/
-│   └── sdxl_canny/
-├── lora/
-│   └── gongbi_lora_v1.safetensors
+├── z_image/
 └── sam/
     └── sam_vit_b.pth
 ```
@@ -83,7 +74,7 @@ uvicorn services.api.app.main:app --reload --port 8000
 
 生产或本地完整推理时可切换：
 
-- `MODEL_BACKEND=diffusers`
+- `MODEL_BACKEND=zimage`
 - `MASK_ASSIST_BACKEND=sam`
 
 ## 关键接口
@@ -181,7 +172,25 @@ python3 scripts/filter_downloaded_reference_images.py \
 当前仓库支持两套后端：
 
 - `MODEL_BACKEND=mock`：PIL/OpenCV 的轻量模拟推理，适合开发联调和测试
-- `MODEL_BACKEND=diffusers`：本地 SDXL + LoRA + ControlNet + Inpaint 推理
+- `MODEL_BACKEND=zimage`：本地 `Tongyi-MAI/Z-Image` 整图图生图与局部重绘
+
+默认完整推理目录示例：
+
+```bash
+hf download Tongyi-MAI/Z-Image \
+  --local-dir /home/featurize/work/brushPainting/runtime/models/z_image
+```
+
+模型运行时参数：
+
+- `Z_IMAGE_MODEL_PATH`
+- `Z_IMAGE_STEPS`
+- `Z_IMAGE_SIZE`
+- `Z_IMAGE_CFG`
+- `Z_IMAGE_IMG2IMG_STRENGTH`
+- `Z_IMAGE_INPAINT_STRENGTH`
+
+模型运行时依赖需要按官方要求使用 `diffusers` 最新源码版，并安装兼容的 `transformers`、`accelerate`、`sentencepiece`、`protobuf`。
 
 Mask assist 也支持两套后端：
 
