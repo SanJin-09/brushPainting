@@ -78,11 +78,11 @@ def style_image(
     seed: int,
     controlnet_weight: float,
 ) -> Image.Image:
-    backend = os.getenv("MODEL_BACKEND", "zimage").lower()
-    if backend in {"zimage", "diffusers"}:
-        from model_runtime.zimage_backend import style_image_zimage
+    backend = os.getenv("MODEL_BACKEND", "mock").lower()
+    if backend == "diffusers":
+        from model_runtime.diffusers_backend import style_image_diffusers
 
-        return style_image_zimage(
+        return style_image_diffusers(
             source_image,
             seed=seed,
             controlnet_weight=controlnet_weight,
@@ -108,11 +108,11 @@ def inpaint_region(
     mask_feather: int,
     prompt_override: str | None = None,
 ) -> Image.Image:
-    backend = os.getenv("MODEL_BACKEND", "zimage").lower()
-    if backend in {"zimage", "diffusers"}:
-        from model_runtime.zimage_backend import inpaint_region_zimage
+    backend = os.getenv("MODEL_BACKEND", "mock").lower()
+    if backend == "diffusers":
+        from model_runtime.diffusers_backend import inpaint_region_diffusers
 
-        return inpaint_region_zimage(
+        return inpaint_region_diffusers(
             current_image,
             source_image,
             mask,

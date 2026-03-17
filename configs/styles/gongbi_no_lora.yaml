@@ -1,5 +1,5 @@
-style_id: gongbi_default
-name: 传统工笔默认风格
+style_id: gongbi_no_lora
+name: 传统工笔默认风格（无LoRA）
 prompt_profile:
   positive: |
     Traditional Chinese gongbi painting, meticulous baimiao-inspired contour drawing,
@@ -21,12 +21,17 @@ prompt_profile:
     gritty realism, excessive contrast, oversharpening, over-detailed photo texture,
     text, watermark, logo, signature, frame border, noisy artifacts.
 render:
-  z_image_steps: 9
-  z_image_size: 1024
-  z_image_img2img_strength: 0.6
-  z_image_inpaint_strength: 1.0
+  sdxl_steps: 32
+  sdxl_cfg: 7.0
+  sdxl_size: 1024
+  controlnet_weight: 0.45
+  inpaint_steps: 28
+  inpaint_denoise: 0.35
 models:
-  z_image_model_path: /home/featurize/work/brushPainting/runtime/models/z_image_turbo
+  sdxl_base_path: /home/featurize/work/brushPainting/runtime/models/sdxl/base
+  sdxl_inpaint_path: /home/featurize/work/brushPainting/runtime/models/sdxl/inpaint
+controlnet:
+  canny_path: /home/featurize/work/brushPainting/runtime/models/controlnet/sdxl_canny
 metadata:
   version: 1
   locked: true

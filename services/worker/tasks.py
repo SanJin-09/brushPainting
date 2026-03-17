@@ -81,10 +81,11 @@ def render_full(self, job_id: str, session_id: str, seed: int):
                         {
                             "style_id": session_obj.style_id,
                             "seed": seed,
-                            "steps": settings.z_image_steps,
-                            "size": settings.z_image_size,
-                            "img2img_strength": settings.z_image_img2img_strength,
-                            "model_backend": settings.model_backend,
+                            "steps": settings.sdxl_steps,
+                            "cfg": settings.sdxl_cfg,
+                            "size": settings.sdxl_size,
+                            "style_denoise": settings.style_denoise,
+                            "controlnet_weight": settings.controlnet_weight,
                         }
                     ),
                     is_current=should_be_current,
@@ -163,13 +164,13 @@ def edit_mask(
                         {
                             "style_id": session_obj.style_id,
                             "seed": seed,
-                            "steps": settings.z_image_steps,
-                            "size": settings.z_image_size,
+                            "steps": settings.inpaint_steps,
+                            "cfg": settings.sdxl_cfg,
+                            "size": settings.sdxl_size,
                             "context_pad": settings.inpaint_context_pad,
                             "mask_feather": settings.inpaint_mask_feather,
-                            "inpaint_strength": settings.z_image_inpaint_strength,
+                            "inpaint_denoise": settings.inpaint_denoise,
                             "prompt_override": prompt_override or "",
-                            "model_backend": settings.model_backend,
                         }
                     ),
                     is_current=False,
