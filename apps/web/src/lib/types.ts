@@ -25,6 +25,8 @@ export type SessionDetail = {
   current_version_id: string | null;
   created_at: string;
   updated_at: string;
+  supports_local_edit: boolean;
+  local_edit_disabled_reason: string | null;
   versions: ImageVersion[];
 };
 

@@ -78,4 +78,6 @@ class SessionRead(BaseModel):
     current_version_id: str | None
     created_at: datetime
     updated_at: datetime
+    supports_local_edit: bool
+    local_edit_disabled_reason: str | None
     versions: list[ImageVersionRead]

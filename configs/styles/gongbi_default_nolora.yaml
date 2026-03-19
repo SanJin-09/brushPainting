@@ -26,6 +26,9 @@ prompt_profile:
     gritty realism, excessive contrast, oversharpening, over-detailed photo texture,
     text, watermark, logo, signature, frame border, noisy artifacts.
 render:
+  qwen_image_steps: 40
+  qwen_image_true_cfg_scale: 4.0
+  qwen_image_guidance_scale: 1.0
   z_image_steps: 32
   z_image_size: 1536
   z_image_cfg: 4.0

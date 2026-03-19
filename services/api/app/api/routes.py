@@ -21,6 +21,7 @@ from services.api.app.schemas.reference_review import (
 from services.api.app.schemas.session import (
     EditRequest,
     ExportResponse,
+    ImageVersionRead,
     MaskAssistRequest,
     MaskAssistResponse,
     RenderRequest,
@@ -46,6 +47,7 @@ from services.api.app.services.session_service import (
     ensure_can_render,
     ensure_mask_inside_bbox,
     get_session,
+    local_edit_capability,
     lock_style,
     mark_done,
     next_seed,
@@ -68,6 +70,23 @@ def _open_media_image(url: str) -> Image.Image:
     return Image.open(path)
 
 
+def _serialize_session(session_obj) -> SessionRead:
+    supports_local_edit, disabled_reason = local_edit_capability()
+    return SessionRead(
+        id=session_obj.id,
+        source_image_url=session_obj.source_image_url,
+        style_id=session_obj.style_id,
+        status=session_obj.status,
+        seed=session_obj.seed,
+        current_version_id=session_obj.current_version_id,
+        created_at=session_obj.created_at,
+        updated_at=session_obj.updated_at,
+        supports_local_edit=supports_local_edit,
+        local_edit_disabled_reason=disabled_reason,
+        versions=[ImageVersionRead.model_validate(version) for version in session_obj.versions],
+    )
+
+
 @router.post("/sessions", response_model=SessionCreateResponse)
 def create_session_endpoint(file: UploadFile = File(...), db: Session = Depends(get_db)):
     try:
@@ -85,7 +104,7 @@ def create_session_endpoint(file: UploadFile = File(...), db: Session = Depends(
 @router.get("/sessions/{session_id}", response_model=SessionRead)
 def get_session_endpoint(session_id: str, db: Session = Depends(get_db)):
     try:
-        return get_session(db, session_id)
+        return _serialize_session(get_session(db, session_id))
     except ServiceError as exc:
         _raise_service_error(exc)
 
@@ -93,7 +112,7 @@ def get_session_endpoint(session_id: str, db: Session = Depends(get_db)):
 @router.post("/sessions/{session_id}/style/lock", response_model=SessionRead)
 def lock_style_endpoint(session_id: str, body: StyleLockRequest, db: Session = Depends(get_db)):
     try:
-        return lock_style(db, session_id, body.style_id)
+        return _serialize_session(lock_style(db, session_id, body.style_id))
     except ServiceError as exc:
         _raise_service_error(exc)
 
@@ -219,7 +238,7 @@ def create_edit_endpoint(session_id: str, body: EditRequest, db: Session = Depen
 @router.post("/sessions/{session_id}/versions/{version_id}/adopt", response_model=SessionRead)
 def adopt_version_endpoint(session_id: str, version_id: str, db: Session = Depends(get_db)):
     try:
-        return adopt_version(db, session_id, version_id)
+        return _serialize_session(adopt_version(db, session_id, version_id))
     except ServiceError as exc:
         _raise_service_error(exc)
 

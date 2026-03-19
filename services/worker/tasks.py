@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+import os
 
 from PIL import Image
 from celery import shared_task
@@ -95,6 +96,35 @@ def _version_path(version_id: str) -> str:
     return f"versions/{version_id}.png"
 
 
+def _current_model_backend() -> str:
+    return os.getenv("MODEL_BACKEND", settings.model_backend).strip().lower()
+
+
+def _render_params_payload(session_obj: Session, seed: int) -> dict[str, object]:
+    backend = _current_model_backend()
+    if backend == "qwen_image":
+        from model_runtime.qwen_image_backend import resolve_qwen_runtime_config
+
+        runtime_config = resolve_qwen_runtime_config()
+        return {
+            "style_id": session_obj.style_id,
+            "seed": seed,
+            "steps": runtime_config["steps"],
+            "true_cfg_scale": runtime_config["true_cfg_scale"],
+            "guidance_scale": runtime_config["guidance_scale"],
+            "model_backend": backend,
+        }
+    return {
+        "style_id": session_obj.style_id,
+        "seed": seed,
+        "steps": settings.z_image_steps,
+        "cfg": settings.z_image_cfg,
+        "size": settings.z_image_size,
+        "img2img_strength": settings.z_image_img2img_strength,
+        "model_backend": backend,
+    }
+
+
 @shared_task(name="services.worker.tasks.render_full", bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 2})
 def render_full(self, job_id: str, session_id: str, seed: int):
     with SessionLocal() as db:
@@ -172,17 +202,7 @@ def render_full(self, job_id: str, session_id: str, seed: int):
                     kind=ImageVersionKind.FULL_RENDER.value,
                     image_url=image_url,
                     seed=seed,
-                    params_hash=params_hash(
-                        {
-                            "style_id": session_obj.style_id,
-                            "seed": seed,
-                            "steps": settings.z_image_steps,
-                            "cfg": settings.z_image_cfg,
-                            "size": settings.z_image_size,
-                            "img2img_strength": settings.z_image_img2img_strength,
-                            "model_backend": settings.model_backend,
-                        }
-                    ),
+                    params_hash=params_hash(_render_params_payload(session_obj, seed)),
                     is_current=should_be_current,
                 )
             )

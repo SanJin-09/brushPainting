@@ -9,6 +9,7 @@ import numpy as np
 from PIL import Image
 
 ProgressCallback = Callable[[int, int, str], None]
+QWEN_LOCAL_EDIT_UNSUPPORTED_ERROR = "Qwen backend does not support local masked edit in this deployment"
 
 
 def _to_cv_rgb(image: Image.Image) -> np.ndarray:
@@ -82,7 +83,16 @@ def style_image(
     controlnet_weight: float,
     progress_callback: ProgressCallback | None = None,
 ) -> Image.Image:
-    backend = os.getenv("MODEL_BACKEND", "zimage").lower()
+    backend = os.getenv("MODEL_BACKEND", "qwen_image").lower()
+    if backend == "qwen_image":
+        from model_runtime.qwen_image_backend import style_image_qwen
+
+        return style_image_qwen(
+            source_image,
+            seed=seed,
+            controlnet_weight=controlnet_weight,
+            progress_callback=progress_callback,
+        )
     if backend == "zimage":
         from model_runtime.zimage_backend import style_image_zimage
 
@@ -120,7 +130,9 @@ def inpaint_region(
     prompt_override: str | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> Image.Image:
-    backend = os.getenv("MODEL_BACKEND", "zimage").lower()
+    backend = os.getenv("MODEL_BACKEND", "qwen_image").lower()
+    if backend == "qwen_image":
+        raise RuntimeError(QWEN_LOCAL_EDIT_UNSUPPORTED_ERROR)
     if backend == "zimage":
         from model_runtime.zimage_backend import inpaint_region_zimage
 

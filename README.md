@@ -5,9 +5,9 @@
 1. 上传原图，创建会话。
 2. 锁定统一工笔风格。
 3. 生成整图工笔版本。
-4. 在当前成图上手绘粗选区。
-5. 使用 mask assist 精修选区。
-6. 对局部区域做 masked inpaint，生成候选版本。
+4. 在支持局部编辑的后端上，可继续手绘粗选区。
+5. 在支持局部编辑的后端上，可使用 mask assist 精修选区。
+6. 在支持局部编辑的后端上，可对局部区域做 masked edit，生成候选版本。
 7. 手动采纳候选版本为当前版本。
 8. 导出当前版本与 manifest。
 
@@ -46,13 +46,14 @@ docker compose -f infra/docker/docker-compose.yml -f infra/docker/docker-compose
 
 默认会把宿主机模型目录挂载到容器 `/models`：
 
-- `Z_IMAGE_MODEL_PATH=/models/z_image`
+- `QWEN_IMAGE_MODEL_PATH=/models/qwen_image_edit_2511`
 - `SAM_MODEL_PATH=/models/sam/sam_vit_b.pth`
 
 建议目录结构：
 
 ```text
 runtime/models/
+├── qwen_image_edit_2511/
 ├── z_image/
 └── sam/
     └── sam_vit_b.pth
@@ -74,8 +75,10 @@ uvicorn services.api.app.main:app --reload --port 8000
 
 生产或本地完整推理时可切换：
 
-- `MODEL_BACKEND=zimage`
+- `MODEL_BACKEND=qwen_image`
 - `MASK_ASSIST_BACKEND=sam`
+
+当前 Qwen 部署仅支持整图重绘；局部蒙版编辑在 `MODEL_BACKEND=qwen_image` 下会被显式禁用。
 
 ## 关键接口
 
@@ -172,17 +175,22 @@ python3 scripts/filter_downloaded_reference_images.py \
 当前仓库支持两套后端：
 
 - `MODEL_BACKEND=mock`：PIL/OpenCV 的轻量模拟推理，适合开发联调和测试
-- `MODEL_BACKEND=zimage`：本地 `Tongyi-MAI/Z-Image` 整图图生图与局部重绘
+- `MODEL_BACKEND=qwen_image`：本地 `Qwen-Image-Edit-2511` 整图重绘
+- `MODEL_BACKEND=zimage`：保留的回滚后端，支持整图图生图与局部重绘
 
 默认完整推理目录示例：
 
 ```bash
-hf download Tongyi-MAI/Z-Image \
-  --local-dir /home/featurize/work/brushPainting/runtime/models/z_image
+hf download Qwen/Qwen-Image-Edit-2511 \
+  --local-dir /home/featurize/work/brushPainting/runtime/models/qwen_image_edit_2511
 ```
 
 模型运行时参数：
 
+- `QWEN_IMAGE_MODEL_PATH`
+- `QWEN_IMAGE_STEPS`
+- `QWEN_IMAGE_TRUE_CFG_SCALE`
+- `QWEN_IMAGE_GUIDANCE_SCALE`
 - `Z_IMAGE_MODEL_PATH`
 - `Z_IMAGE_STEPS`
 - `Z_IMAGE_SIZE`
@@ -190,7 +198,7 @@ hf download Tongyi-MAI/Z-Image \
 - `Z_IMAGE_IMG2IMG_STRENGTH`
 - `Z_IMAGE_INPAINT_STRENGTH`
 
-模型运行时依赖需要按官方要求使用 `diffusers` 最新源码版，并安装兼容的 `transformers`、`accelerate`、`sentencepiece`、`protobuf`。
+模型运行时依赖需要按官方要求使用 `diffusers` 最新源码版，并安装兼容的 `transformers`、`accelerate`、`sentencepiece`、`protobuf`。Qwen 编辑任务在本仓库内使用本地固定模板拼接 prompt，不依赖云端 prompt enhancement。
 
 Mask assist 也支持两套后端：
 

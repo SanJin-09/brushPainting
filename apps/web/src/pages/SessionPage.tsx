@@ -163,6 +163,8 @@ export default function SessionPage() {
   const selectedIsCurrent = !selectedVersion || selectedVersion.id === currentVersion?.id;
   const visibleJob = session && lastJob && lastJob.session_id === session.id ? lastJob : null;
   const jobProgressPercent = visibleJob ? getJobProgressPercent(visibleJob) : 0;
+  const localEditEnabled = session?.supports_local_edit ?? true;
+  const localEditDisabledReason = session?.local_edit_disabled_reason ?? "当前 Qwen 后端仅支持整图重绘";
 
   return (
     <div className="page workspace-page">
@@ -230,70 +232,78 @@ export default function SessionPage() {
               </button>
             </div>
 
+            {localEditEnabled ? (
+              <>
+                <div className="group">
+                  <button
+                    disabled={busy || !currentVersion}
+                    onClick={() => {
+                      editorRef.current?.clear();
+                      setAssistResult(null);
+                    }}
+                  >
+                    清空选区
+                  </button>
+
+                  <button
+                    disabled={busy || !currentVersion}
+                    onClick={async () => {
+                      if (!currentVersion || !id) {
+                        return;
+                      }
+                      const maskRle = editorRef.current?.exportMaskRle();
+                      if (!maskRle) {
+                        setError("请先画出局部选区");
+                        return;
+                      }
+                      await withBusy(async () => {
+                        const result = await maskAssist(id, maskRle);
+                        setAssistResult(result);
+                        editorRef.current?.replaceMask(result.mask_rle);
+                      });
+                    }}
+                  >
+                    吸附选区
+                  </button>
+                </div>
+
+                <div className="group">
+                  <label>局部指令：</label>
+                  <input
+                    value={promptOverride}
+                    onChange={(e) => setPromptOverride(e.target.value)}
+                    placeholder="可选，例如：花瓣颜色更淡"
+                  />
+                  <button
+                    disabled={busy || !currentVersion || !assistResult}
+                    onClick={() =>
+                      withBusy(async () => {
+                        const job = await createEdit(session.id, {
+                          mask_rle: assistResult.mask_rle,
+                          bbox_x: assistResult.bbox_x,
+                          bbox_y: assistResult.bbox_y,
+                          bbox_w: assistResult.bbox_w,
+                          bbox_h: assistResult.bbox_h,
+                          seed,
+                          prompt_override: promptOverride || undefined
+                        });
+                        setLastJob(job);
+                        await pollJob(job.id);
+                        setAssistResult(null);
+                        editorRef.current?.clear();
+                        setPromptOverride("");
+                      })
+                    }
+                  >
+                    生成局部候选
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="selection-meta">{localEditDisabledReason}</div>
+            )}
+
             <div className="group">
-              <button
-                disabled={busy || !currentVersion}
-                onClick={() => {
-                  editorRef.current?.clear();
-                  setAssistResult(null);
-                }}
-              >
-                清空选区
-              </button>
-
-              <button
-                disabled={busy || !currentVersion}
-                onClick={async () => {
-                  if (!currentVersion || !id) {
-                    return;
-                  }
-                  const maskRle = editorRef.current?.exportMaskRle();
-                  if (!maskRle) {
-                    setError("请先画出局部选区");
-                    return;
-                  }
-                  await withBusy(async () => {
-                    const result = await maskAssist(id, maskRle);
-                    setAssistResult(result);
-                    editorRef.current?.replaceMask(result.mask_rle);
-                  });
-                }}
-              >
-                吸附选区
-              </button>
-            </div>
-
-            <div className="group">
-              <label>局部指令：</label>
-              <input
-                value={promptOverride}
-                onChange={(e) => setPromptOverride(e.target.value)}
-                placeholder="可选，例如：花瓣颜色更淡"
-              />
-              <button
-                disabled={busy || !currentVersion || !assistResult}
-                onClick={() =>
-                  withBusy(async () => {
-                    const job = await createEdit(session.id, {
-                      mask_rle: assistResult.mask_rle,
-                      bbox_x: assistResult.bbox_x,
-                      bbox_y: assistResult.bbox_y,
-                      bbox_w: assistResult.bbox_w,
-                      bbox_h: assistResult.bbox_h,
-                      seed,
-                      prompt_override: promptOverride || undefined
-                    });
-                    setLastJob(job);
-                    await pollJob(job.id);
-                    setAssistResult(null);
-                    editorRef.current?.clear();
-                    setPromptOverride("");
-                  })
-                }
-              >
-                生成局部候选
-              </button>
-
               <button
                 disabled={busy || !currentVersion}
                 onClick={() =>
@@ -307,7 +317,7 @@ export default function SessionPage() {
               </button>
             </div>
 
-            {assistResult ? (
+            {localEditEnabled && assistResult ? (
               <div className="selection-meta">
                 当前精修选区 bbox: ({assistResult.bbox_x}, {assistResult.bbox_y}, {assistResult.bbox_w}, {assistResult.bbox_h})
               </div>
@@ -349,8 +359,8 @@ export default function SessionPage() {
 
           <section className="workspace-grid">
             <div className="panel">
-              <h3>局部编辑画布</h3>
-              {editableImageUrl ? (
+              <h3>{localEditEnabled ? "局部编辑画布" : "局部编辑已禁用"}</h3>
+              {localEditEnabled && editableImageUrl ? (
                 <MaskEditor
                   key={editableImageUrl}
                   ref={editorRef}
@@ -358,7 +368,9 @@ export default function SessionPage() {
                   disabled={!currentVersion || busy}
                 />
               ) : (
-                <div className="empty">先生成整图，再进行局部编辑。</div>
+                <div className="empty">
+                  {localEditEnabled ? "先生成整图，再进行局部编辑。" : localEditDisabledReason}
+                </div>
               )}
             </div>
 

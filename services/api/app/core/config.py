@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     style_config_path: str = Field(default="./configs/styles/gongbi_default.yaml", alias="STYLE_CONFIG_PATH")
     default_style_id: str = Field(default="gongbi_default", alias="DEFAULT_STYLE_ID")
 
+    qwen_image_model_path: str = Field(default="./runtime/models/qwen_image_edit_2511", alias="QWEN_IMAGE_MODEL_PATH")
+    qwen_image_steps: int = Field(default=40, alias="QWEN_IMAGE_STEPS")
+    qwen_image_true_cfg_scale: float = Field(default=4.0, alias="QWEN_IMAGE_TRUE_CFG_SCALE")
+    qwen_image_guidance_scale: float = Field(default=1.0, alias="QWEN_IMAGE_GUIDANCE_SCALE")
+
     z_image_model_path: str = Field(default="./runtime/models/z_image", alias="Z_IMAGE_MODEL_PATH")
     z_image_steps: int = Field(default=32, alias="Z_IMAGE_STEPS")
     z_image_size: int = Field(default=1536, alias="Z_IMAGE_SIZE")
@@ -38,7 +43,7 @@ class Settings(BaseSettings):
     model_device: str = Field(default="cpu", alias="MODEL_DEVICE")
     model_precision: str = Field(default="bf16", alias="MODEL_PRECISION")
     model_root: str = Field(default="./runtime/models", alias="MODEL_ROOT")
-    model_backend: str = Field(default="zimage", alias="MODEL_BACKEND")
+    model_backend: str = Field(default="qwen_image", alias="MODEL_BACKEND")
 
     @property
     def media_root_path(self) -> Path:

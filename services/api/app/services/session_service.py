@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import random
 import uuid
 
@@ -19,6 +20,7 @@ from services.api.app.services.storage import LocalMediaStorage
 
 settings = get_settings()
 storage = LocalMediaStorage()
+QWEN_LOCAL_EDIT_DISABLED_REASON = "当前 Qwen 后端仅支持整图重绘"
 
 
 def _session_with_relations_query(session_id: str):
@@ -80,6 +82,22 @@ def ensure_can_render(session_obj: SessionModel) -> None:
         raise ValidationError("Style must be locked before rendering")
 
 
+def current_model_backend() -> str:
+    return os.getenv("MODEL_BACKEND", settings.model_backend).strip().lower()
+
+
+def local_edit_capability() -> tuple[bool, str | None]:
+    if current_model_backend() == "qwen_image":
+        return False, QWEN_LOCAL_EDIT_DISABLED_REASON
+    return True, None
+
+
+def ensure_local_edit_supported() -> None:
+    supports_local_edit, reason = local_edit_capability()
+    if not supports_local_edit:
+        raise ConflictError(reason or QWEN_LOCAL_EDIT_DISABLED_REASON)
+
+
 def current_version_or_raise(session_obj: SessionModel) -> ImageVersion:
     current = session_obj.current_version
     if not current:
@@ -88,10 +106,12 @@ def current_version_or_raise(session_obj: SessionModel) -> ImageVersion:
 
 
 def ensure_can_mask_assist(session_obj: SessionModel) -> ImageVersion:
+    ensure_local_edit_supported()
     return current_version_or_raise(session_obj)
 
 
 def ensure_can_edit(session_obj: SessionModel) -> ImageVersion:
+    ensure_local_edit_supported()
     return current_version_or_raise(session_obj)
 
 
