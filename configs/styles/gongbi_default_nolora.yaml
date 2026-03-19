@@ -9,10 +9,15 @@ prompt_profile:
     elegant negative space, subtle silk or rice paper texture, highly refined ornamental detailing,
     delicate facial features and costume pattern details when figures are present,
     stylized rocks, pines, clouds and water patterns when landscape elements are present,
-    simplified natural textures, decorative rather than photographic rendering,
+    simplified natural textures, decorative rather than photographic rendering, preserve the original composition,
+    preserve subject identity, preserve object count and spatial layout, preserve pose, silhouette, costume,
+    accessories and all visible fine details from the source image, repaint the source image in traditional
+    Chinese gongbi style instead of redesigning content, keep all meaningful structures and ornaments intact,
     coherent linework, unified color washes, traditional Chinese painting aesthetics,
-    hand-painted finish, non-photographic image, strong style transformation.
+    hand-painted finish, non-photographic image, detail-preserving style transfer.
   negative: |
+    changed composition, altered subject identity, missing objects, extra objects, changed pose,
+    erased ornaments, simplified garment patterns, lost background details, omitted fine structures,
     photorealistic, photography, realistic skin pores, realistic hair strands, realistic grass texture,
     realistic bark texture, camera, lens, bokeh, depth of field, cinematic lighting, harsh shadow,
     glossy highlight, specular reflection, HDR, modern digital cartoon, anime, manga, comic,
@@ -24,7 +29,7 @@ render:
   z_image_steps: 32
   z_image_size: 1536
   z_image_cfg: 4.0
-  z_image_img2img_strength: 0.6
+  z_image_img2img_strength: 0.45
   z_image_inpaint_strength: 1.0
 models:
   z_image_model_path: /models/z_image
