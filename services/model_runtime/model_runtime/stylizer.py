@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 import hashlib
 import os
 
 import cv2
 import numpy as np
 from PIL import Image
+
+ProgressCallback = Callable[[int, int, str], None]
 
 
 def _to_cv_rgb(image: Image.Image) -> np.ndarray:
@@ -77,6 +80,7 @@ def style_image(
     *,
     seed: int,
     controlnet_weight: float,
+    progress_callback: ProgressCallback | None = None,
 ) -> Image.Image:
     backend = os.getenv("MODEL_BACKEND", "zimage").lower()
     if backend == "zimage":
@@ -86,12 +90,17 @@ def style_image(
             source_image,
             seed=seed,
             controlnet_weight=controlnet_weight,
+            progress_callback=progress_callback,
         )
     if backend != "mock":
         raise RuntimeError(f"Unsupported MODEL_BACKEND: {backend}")
 
+    if progress_callback is not None:
+        progress_callback(1, 2, "正在生成整图")
     rgb = _to_cv_rgb(source_image)
     styled = _stylize_rgb(rgb, seed=seed, controlnet_weight=controlnet_weight)
+    if progress_callback is not None:
+        progress_callback(2, 2, "正在生成整图")
     return _to_pil(styled)
 
 
@@ -109,6 +118,7 @@ def inpaint_region(
     context_pad: int,
     mask_feather: int,
     prompt_override: str | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> Image.Image:
     backend = os.getenv("MODEL_BACKEND", "zimage").lower()
     if backend == "zimage":
@@ -127,6 +137,7 @@ def inpaint_region(
             context_pad=context_pad,
             mask_feather=mask_feather,
             prompt_override=prompt_override,
+            progress_callback=progress_callback,
         )
     if backend != "mock":
         raise RuntimeError(f"Unsupported MODEL_BACKEND: {backend}")
@@ -144,9 +155,13 @@ def inpaint_region(
     source_patch = source_rgb[y0:y1, x0:x1]
     mask_patch = (mask[y0:y1, x0:x1].astype(np.uint8) > 0).astype(np.uint8)
 
+    if progress_callback is not None:
+        progress_callback(1, 2, "正在生成局部候选")
     edited_patch = _stylize_rgb(source_patch, seed=seed, controlnet_weight=controlnet_weight)
     edited_patch = _apply_prompt_hint(edited_patch, prompt_override)
     blended_patch = _soft_blend(current_patch.astype(np.float32), edited_patch.astype(np.float32), mask_patch, feather=mask_feather)
+    if progress_callback is not None:
+        progress_callback(2, 2, "正在生成局部候选")
 
     composed = current_rgb.copy()
     composed[y0:y1, x0:x1] = blended_patch

@@ -42,6 +42,8 @@ export type Job = {
   session_id: string | null;
   status: string;
   error_message: string | null;
+  progress_percent: number | null;
+  progress_message: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -17,11 +17,14 @@ def create_job(
     session_id: str | None,
     payload: dict[str, Any] | None = None,
 ) -> Job:
+    job_payload = dict(payload or {})
+    job_payload.setdefault("progress_percent", 0)
+    job_payload.setdefault("progress_message", "排队中")
     job = Job(
         id=str(uuid.uuid4()),
         type=job_type,
         session_id=session_id,
-        payload_json=payload or {},
+        payload_json=job_payload,
         status=JobStatus.QUEUED.value,
     )
     db.add(job)

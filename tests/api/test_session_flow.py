@@ -48,6 +48,8 @@ def test_full_render_edit_adopt_export_flow(monkeypatch):
     response = client.get(f"/api/v1/jobs/{job_id}")
     assert response.status_code == 200
     assert response.json()["status"] == "SUCCEEDED"
+    assert response.json()["progress_percent"] == 100
+    assert response.json()["progress_message"] == "整图生成完成"
 
     response = client.get(f"/api/v1/sessions/{session_id}")
     assert response.status_code == 200
@@ -83,6 +85,8 @@ def test_full_render_edit_adopt_export_flow(monkeypatch):
     response = client.get(f"/api/v1/jobs/{edit_job_id}")
     assert response.status_code == 200
     assert response.json()["status"] == "SUCCEEDED"
+    assert response.json()["progress_percent"] == 100
+    assert response.json()["progress_message"] == "局部候选生成完成"
 
     response = client.get(f"/api/v1/sessions/{session_id}")
     assert response.status_code == 200

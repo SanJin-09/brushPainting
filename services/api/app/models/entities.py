@@ -84,3 +84,19 @@ class Job(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
     session: Mapped[Session | None] = relationship(back_populates="jobs")
+
+    @property
+    def progress_percent(self) -> int | None:
+        payload = self.payload_json or {}
+        value = payload.get("progress_percent")
+        if not isinstance(value, (int, float)):
+            return None
+        return max(0, min(100, int(value)))
+
+    @property
+    def progress_message(self) -> str | None:
+        payload = self.payload_json or {}
+        value = payload.get("progress_message")
+        if not isinstance(value, str):
+            return None
+        return value.strip() or None

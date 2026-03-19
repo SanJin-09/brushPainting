@@ -258,6 +258,63 @@ button:disabled {
   gap: 12px;
 }
 
+.job-box {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(176, 135, 79, 0.34);
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.96), rgba(248, 239, 224, 0.94));
+}
+
+.job-box-head,
+.job-box-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.job-box-head {
+  color: #4c2f0f;
+}
+
+.job-box-status {
+  color: #6f5535;
+  flex-wrap: wrap;
+}
+
+.job-progress {
+  display: grid;
+  gap: 8px;
+}
+
+.job-progress-track {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(130, 92, 45, 0.14);
+  box-shadow: inset 0 1px 2px rgba(76, 47, 15, 0.12);
+}
+
+.job-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #a1621e, #d9a24f 52%, #efd08e);
+  box-shadow: 0 4px 10px rgba(161, 98, 30, 0.2);
+  transition: width 0.35s ease;
+}
+
+.job-progress-fill.is-failed {
+  background: linear-gradient(90deg, #9f2b2b, #d15555);
+  box-shadow: 0 4px 10px rgba(159, 43, 43, 0.18);
+}
+
+.job-progress-meta {
+  color: #6b5538;
+  font-size: 13px;
+}
+
 .empty {
   color: #8e6e44;
 }

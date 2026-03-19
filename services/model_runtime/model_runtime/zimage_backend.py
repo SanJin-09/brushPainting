@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import lru_cache
+import inspect
 import os
 from pathlib import Path
 from typing import Any
@@ -14,6 +16,9 @@ from model_runtime.style_config import StyleConfigError, load_style_config
 
 class ZImageBackendUnavailable(RuntimeError):
     pass
+
+
+ProgressCallback = Callable[[int, int, str], None]
 
 
 @lru_cache(maxsize=1)
@@ -246,6 +251,33 @@ def _pipeline_kwargs(payload: dict[str, Any]) -> dict[str, Any]:
     return kwargs
 
 
+def _attach_progress_callback(
+    pipe,
+    kwargs: dict[str, Any],
+    *,
+    progress_callback: ProgressCallback | None,
+    message: str,
+) -> tuple[dict[str, Any], int]:
+    total_steps = int(kwargs.get("num_inference_steps", 0) or 0)
+    if progress_callback is None or total_steps <= 0:
+        return kwargs, total_steps
+    try:
+        parameters = inspect.signature(pipe.__call__).parameters
+    except (TypeError, ValueError):
+        return kwargs, total_steps
+    if "callback_on_step_end" not in parameters:
+        return kwargs, total_steps
+
+    def _on_step_end(_pipe, step_index, _timestep, callback_kwargs):
+        progress_callback(min(step_index + 1, total_steps), total_steps, message)
+        return callback_kwargs
+
+    kwargs["callback_on_step_end"] = _on_step_end
+    if "callback_on_step_end_tensor_inputs" in parameters:
+        kwargs["callback_on_step_end_tensor_inputs"] = []
+    return kwargs, total_steps
+
+
 @lru_cache(maxsize=1)
 def _style_runtime():
     _check_imports()
@@ -301,6 +333,7 @@ def style_image_zimage(
     *,
     seed: int,
     controlnet_weight: float,
+    progress_callback: ProgressCallback | None = None,
 ) -> Image.Image:
     _ = controlnet_weight
     pipe, prompts, torch_module, payload = _style_runtime()
@@ -325,6 +358,12 @@ def style_image_zimage(
             "generator": _make_generator(torch_module, seed),
         }
     )
+    kwargs, _total_steps = _attach_progress_callback(
+        pipe,
+        kwargs,
+        progress_callback=progress_callback,
+        message="正在生成整图",
+    )
 
     result = pipe(**kwargs).images[0].convert("RGB")
     return result.resize(original_size, Image.Resampling.LANCZOS)
@@ -344,6 +383,7 @@ def inpaint_region_zimage(
     context_pad: int,
     mask_feather: int,
     prompt_override: str | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> Image.Image:
     _ = controlnet_weight
     pipe, prompts, torch_module, payload = _inpaint_runtime()
@@ -383,6 +423,12 @@ def inpaint_region_zimage(
             "strength": _resolve_inpaint_strength(payload),
             "generator": _make_generator(torch_module, seed),
         }
+    )
+    kwargs, _total_steps = _attach_progress_callback(
+        pipe,
+        kwargs,
+        progress_callback=progress_callback,
+        message="正在生成局部候选",
     )
 
     refined = pipe(**kwargs).images[0].convert("RGB")

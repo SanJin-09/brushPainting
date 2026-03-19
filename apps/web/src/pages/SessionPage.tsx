@@ -12,8 +12,66 @@ import {
   maskAssist,
   renderSession
 } from "../lib/api";
-import type { ImageVersion, MaskAssistResult } from "../lib/types";
+import type { ImageVersion, Job, MaskAssistResult } from "../lib/types";
 import { useAppStore } from "../store";
+
+const JOB_POLL_INTERVAL_MS = 1000;
+const JOB_POLL_TIMEOUT_MS = 180000;
+
+function clampProgressPercent(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function getJobTypeLabel(jobType: string) {
+  if (jobType === "render_full") {
+    return "整图生成";
+  }
+  if (jobType === "edit_mask") {
+    return "局部候选";
+  }
+  return jobType;
+}
+
+function getJobProgressPercent(job: Job) {
+  if (typeof job.progress_percent === "number") {
+    return clampProgressPercent(job.progress_percent);
+  }
+  if (job.status === "QUEUED") {
+    return 0;
+  }
+  if (job.status === "RUNNING") {
+    return 60;
+  }
+  if (job.status === "SUCCEEDED") {
+    return 100;
+  }
+  if (job.status === "FAILED") {
+    return 100;
+  }
+  return 0;
+}
+
+function getJobProgressMessage(job: Job) {
+  if (job.error_message) {
+    return job.error_message;
+  }
+  if (job.progress_message) {
+    return job.progress_message;
+  }
+  if (job.status === "QUEUED") {
+    return "任务已提交，等待开始";
+  }
+  if (job.status === "RUNNING") {
+    return "任务执行中";
+  }
+  if (job.status === "SUCCEEDED") {
+    return "任务完成";
+  }
+  if (job.status === "FAILED") {
+    return "任务失败";
+  }
+  return "等待状态更新";
+}
 
 function sortVersions(versions: ImageVersion[]) {
   return [...versions].sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
@@ -82,7 +140,8 @@ export default function SessionPage() {
   };
 
   const pollJob = async (jobId: string) => {
-    for (let i = 0; i < 60; i += 1) {
+    const maxAttempts = Math.ceil(JOB_POLL_TIMEOUT_MS / JOB_POLL_INTERVAL_MS);
+    for (let i = 0; i < maxAttempts; i += 1) {
       const job = await getJob(jobId);
       setLastJob(job);
       if (job.status === "SUCCEEDED") {
@@ -91,9 +150,9 @@ export default function SessionPage() {
       if (job.status === "FAILED") {
         throw new Error(job.error_message || "任务失败");
       }
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
     }
-    throw new Error("任务超时");
+    throw new Error(`任务超时（${JOB_POLL_TIMEOUT_MS / 1000} 秒内未完成）`);
   };
 
   useEffect(() => {
@@ -102,6 +161,8 @@ export default function SessionPage() {
 
   const editableImageUrl = currentVersion?.image_url ?? session?.source_image_url ?? "";
   const selectedIsCurrent = !selectedVersion || selectedVersion.id === currentVersion?.id;
+  const visibleJob = session && lastJob && lastJob.session_id === session.id ? lastJob : null;
+  const jobProgressPercent = visibleJob ? getJobProgressPercent(visibleJob) : 0;
 
   return (
     <div className="page workspace-page">
@@ -252,10 +313,25 @@ export default function SessionPage() {
               </div>
             ) : null}
 
-            {lastJob ? (
+            {visibleJob ? (
               <div className="job-box">
-                最近任务：{lastJob.type} / <StatusBadge status={lastJob.status} />
-                {lastJob.error_message ? <div className="error">{lastJob.error_message}</div> : null}
+                <div className="job-box-head">
+                  <strong>{getJobTypeLabel(visibleJob.type)}</strong>
+                  <span>{jobProgressPercent}%</span>
+                </div>
+                <div className="job-box-status">
+                  最近任务：{getJobTypeLabel(visibleJob.type)} / <StatusBadge status={visibleJob.status} />
+                </div>
+                <div className="job-progress" aria-label={`${getJobTypeLabel(visibleJob.type)}进度 ${jobProgressPercent}%`}>
+                  <div className="job-progress-track">
+                    <div
+                      className={`job-progress-fill${visibleJob.status === "FAILED" ? " is-failed" : ""}`}
+                      style={{ width: `${jobProgressPercent}%` }}
+                    />
+                  </div>
+                  <div className="job-progress-meta">{getJobProgressMessage(visibleJob)}</div>
+                </div>
+                {visibleJob.error_message ? <div className="error">{visibleJob.error_message}</div> : null}
               </div>
             ) : null}
 

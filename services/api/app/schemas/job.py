@@ -13,5 +13,7 @@ class JobRead(BaseModel):
     session_id: str | None
     status: str
     error_message: str | None
+    progress_percent: int | None = None
+    progress_message: str | None = None
     created_at: datetime
     updated_at: datetime
