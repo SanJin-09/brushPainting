@@ -70,7 +70,16 @@ services:
         NO_PROXY: ${NO_PROXY:-}
     env_file:
       - ../../.env
-    command: ["celery", "-A", "services.worker.celery_app.celery_app", "worker", "-Q", "default", "--loglevel=info", "--concurrency=1", "--pool=solo"]
+    command:
+      - celery
+      - -A
+      - services.worker.celery_app.celery_app
+      - worker
+      - -Q
+      - default
+      - --loglevel=${WORKER_LOG_LEVEL:-info}
+      - --concurrency=${WORKER_CONCURRENCY:-1}
+      - --pool=${WORKER_POOL:-solo}
     restart: unless-stopped
     depends_on:
       - postgres

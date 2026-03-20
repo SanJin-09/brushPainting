@@ -77,8 +77,11 @@ uvicorn services.api.app.main:app --reload --port 8000
 
 - `MODEL_BACKEND=qwen_image`
 - `MASK_ASSIST_BACKEND=sam`
+- `WORKER_CONCURRENCY=1`
+- `WORKER_POOL=solo`
 
 当前 Qwen 部署仅支持整图重绘；局部蒙版编辑在 `MODEL_BACKEND=qwen_image` 下会被显式禁用。
+Qwen-Image-Edit-2511 运行时还需要 `torchvision`，当前仓库按 PyTorch 2.6.0 / CUDA 12.4 对应 `torchvision==0.21.0`。
 
 ## 关键接口
 
@@ -191,6 +194,8 @@ hf download Qwen/Qwen-Image-Edit-2511 \
 - `QWEN_IMAGE_STEPS`
 - `QWEN_IMAGE_TRUE_CFG_SCALE`
 - `QWEN_IMAGE_GUIDANCE_SCALE`
+- `WORKER_CONCURRENCY`
+- `WORKER_POOL`
 - `Z_IMAGE_MODEL_PATH`
 - `Z_IMAGE_STEPS`
 - `Z_IMAGE_SIZE`
@@ -198,7 +203,7 @@ hf download Qwen/Qwen-Image-Edit-2511 \
 - `Z_IMAGE_IMG2IMG_STRENGTH`
 - `Z_IMAGE_INPAINT_STRENGTH`
 
-模型运行时依赖需要按官方要求使用 `diffusers` 最新源码版，并安装兼容的 `transformers`、`accelerate`、`sentencepiece`、`protobuf`。Qwen 编辑任务在本仓库内使用本地固定模板拼接 prompt，不依赖云端 prompt enhancement。
+模型运行时依赖需要安装兼容的 `torch`、`torchvision`、`diffusers`、`transformers`、`accelerate`、`sentencepiece`、`protobuf`。其中 PyTorch 官方旧版本页给出的 `torch==2.6.0` 对应 `torchvision==0.21.0`；当前 Qwen 编辑链路使用 `diffusers==0.36.0`。Qwen 编辑任务在本仓库内使用本地固定模板拼接 prompt，不依赖云端 prompt enhancement。
 
 Mask assist 也支持两套后端：
 
