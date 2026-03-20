@@ -35,6 +35,13 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/api.Dockerfile
+      args:
+        http_proxy: ${http_proxy:-}
+        https_proxy: ${https_proxy:-}
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        no_proxy: ${no_proxy:-}
+        NO_PROXY: ${NO_PROXY:-}
     env_file:
       - ../../.env
     restart: unless-stopped
@@ -54,8 +61,16 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/worker.Dockerfile
+      args:
+        http_proxy: ${http_proxy:-}
+        https_proxy: ${https_proxy:-}
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        no_proxy: ${no_proxy:-}
+        NO_PROXY: ${NO_PROXY:-}
     env_file:
       - ../../.env
+    command: ["celery", "-A", "services.worker.celery_app.celery_app", "worker", "-Q", "default", "--loglevel=info", "--concurrency=1", "--pool=solo"]
     restart: unless-stopped
     depends_on:
       - postgres
