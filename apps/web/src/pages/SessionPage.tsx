@@ -276,14 +276,18 @@ export default function SessionPage() {
                   />
                   <button
                     disabled={busy || !currentVersion || !assistResult}
-                    onClick={() =>
-                      withBusy(async () => {
+                    onClick={() => {
+                      const selection = assistResult;
+                      if (!selection) {
+                        return;
+                      }
+                      return withBusy(async () => {
                         const job = await createEdit(session.id, {
-                          mask_rle: assistResult.mask_rle,
-                          bbox_x: assistResult.bbox_x,
-                          bbox_y: assistResult.bbox_y,
-                          bbox_w: assistResult.bbox_w,
-                          bbox_h: assistResult.bbox_h,
+                          mask_rle: selection.mask_rle,
+                          bbox_x: selection.bbox_x,
+                          bbox_y: selection.bbox_y,
+                          bbox_w: selection.bbox_w,
+                          bbox_h: selection.bbox_h,
                           seed,
                           prompt_override: promptOverride || undefined
                         });
@@ -292,8 +296,8 @@ export default function SessionPage() {
                         setAssistResult(null);
                         editorRef.current?.clear();
                         setPromptOverride("");
-                      })
-                    }
+                      });
+                    }}
                   >
                     生成局部候选
                   </button>
