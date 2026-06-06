@@ -40,4 +40,4 @@ COPY . /app
 
 ENV PYTHONPATH=/app/services/api:/app/services/worker:/app/services/model_runtime
 
-CMD ["celery", "-A", "services.worker.celery_app.celery_app", "worker", "-Q", "default", "--loglevel=info"]
+CMD ["python", "-m", "services.worker.rq_worker"]

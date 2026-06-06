@@ -1,5 +1,7 @@
 services:
   worker:
+    environment:
+      MODEL_BACKEND: diffsynth_qwen
     deploy:
       resources:
         reservations:

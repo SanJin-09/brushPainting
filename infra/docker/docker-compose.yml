@@ -1,101 +1,65 @@
 services:
-  postgres:
-    image: postgres:16
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: gongbi
-      POSTGRES_USER: gongbi
-      POSTGRES_PASSWORD: gongbi
-    ports:
-      - "${POSTGRES_HOST_PORT:-5433}:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ../sql:/docker-entrypoint-initdb.d
-
   redis:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
       - "${REDIS_HOST_PORT:-6380}:6379"
 
-  minio:
-    image: minio/minio:latest
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "${MINIO_API_HOST_PORT:-9010}:9000"
-      - "${MINIO_CONSOLE_HOST_PORT:-9011}:9001"
-    volumes:
-      - minio_data:/data
-
   api:
+    image: brush-painting-api:offline
     build:
       context: ../..
       dockerfile: infra/docker/api.Dockerfile
-      args:
-        http_proxy: ${http_proxy:-}
-        https_proxy: ${https_proxy:-}
-        HTTP_PROXY: ${HTTP_PROXY:-}
-        HTTPS_PROXY: ${HTTPS_PROXY:-}
-        no_proxy: ${no_proxy:-}
-        NO_PROXY: ${NO_PROXY:-}
-    env_file:
-      - ../../.env
+    environment: &backend_environment
+      APP_ENV: development
+      DATABASE_URL: sqlite:////app/runtime/db.sqlite
+      REDIS_URL: redis://redis:6379/0
+      RQ_QUEUE_NAME: gpu
+      RQ_MAX_QUEUED_JOBS: "50"
+      RUNTIME_ROOT: /app/runtime
+      PUBLIC_MEDIA_BASE: http://localhost:8000/media
+      MAX_UPLOAD_FILES: "5"
+      MAX_UPLOAD_BYTES: "20971520"
+      MAX_IMAGE_EDGE: "8192"
+      THUMBNAIL_MAX_EDGE: "480"
+      MODEL_BACKEND: mock
+      QWEN_EDIT_MODEL_PATH: /models/qwen_image_edit_2511
+      QWEN_IMAGE_COMPONENTS_PATH: /models/qwen_image
+      QWEN_EDIT_PROCESSOR_PATH: /models/qwen_image_edit/processor
+      GONGBI_LORA_PATH: /models/lora/qwen_image_edit_2511_gongbi_lora_v1.safetensors
+      GONGBI_LORA_SCALE: "1.0"
+      QWEN_IMAGE_STEPS: "40"
     restart: unless-stopped
     depends_on:
-      - postgres
       - redis
     volumes:
       - ../../runtime:/app/runtime
-      - ../../configs:/app/configs
       - ../../services:/app/services
-      - ../../tests:/app/tests
       - ${MODEL_HOST_PATH:-../../runtime/models}:/models:ro
     ports:
       - "8000:8000"
 
   worker:
+    image: brush-painting-worker:offline
     build:
       context: ../..
       dockerfile: infra/docker/worker.Dockerfile
-      args:
-        http_proxy: ${http_proxy:-}
-        https_proxy: ${https_proxy:-}
-        HTTP_PROXY: ${HTTP_PROXY:-}
-        HTTPS_PROXY: ${HTTPS_PROXY:-}
-        no_proxy: ${no_proxy:-}
-        NO_PROXY: ${NO_PROXY:-}
-    env_file:
-      - ../../.env
-    command:
-      - celery
-      - -A
-      - services.worker.celery_app.celery_app
-      - worker
-      - -Q
-      - default
-      - --loglevel=${WORKER_LOG_LEVEL:-info}
-      - --concurrency=${WORKER_CONCURRENCY:-1}
-      - --pool=${WORKER_POOL:-solo}
+    environment: *backend_environment
     restart: unless-stopped
     depends_on:
-      - postgres
       - redis
     volumes:
       - ../../runtime:/app/runtime
-      - ../../configs:/app/configs
       - ../../services:/app/services
       - ${MODEL_HOST_PATH:-../../runtime/models}:/models:ro
 
   web:
+    image: brush-painting-web:offline
     build:
       context: ../..
       dockerfile: infra/docker/web.Dockerfile
-    env_file:
-      - ../../.env
+    environment:
+      VITE_API_BASE: http://localhost:8000/api
     restart: unless-stopped
     depends_on:
       - api
@@ -104,7 +68,3 @@ services:
       - /app/node_modules
     ports:
       - "5173:5173"
-
-volumes:
-  postgres_data:
-  minio_data:
