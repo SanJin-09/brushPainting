@@ -1,17 +1,26 @@
-from pathlib import Path
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from services.api.app.api.routes import router
 from services.api.app.core.config import get_settings
 from services.api.app.db.database import engine
 from services.api.app.models import Base
+from services.api.app.services.storage import LocalStorage
 
 settings = get_settings()
+storage = LocalStorage()
 
-app = FastAPI(title="Gongbi Repaint API", version="0.2.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
+app = FastAPI(title="Gongbi Repaint API", version="0.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,14 +32,12 @@ app.add_middleware(
 
 app.include_router(router)
 
-media_root = settings.media_root_path
-media_root.mkdir(parents=True, exist_ok=True)
-app.mount("/media", StaticFiles(directory=media_root), name="media")
-
-
-@app.on_event("startup")
-def on_startup() -> None:
-    Base.metadata.create_all(bind=engine)
+@app.get("/media/{path:path}", include_in_schema=False)
+def media(path: str):
+    try:
+        return FileResponse(storage.resolve_public_media(path))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="媒体文件不存在")
 
 
 @app.get("/healthz")

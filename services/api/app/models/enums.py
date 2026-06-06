@@ -1,24 +1,28 @@
 from enum import Enum
 
 
-class SessionStatus(str, Enum):
-    UPLOADED = "UPLOADED"
-    STYLE_LOCKED = "STYLE_LOCKED"
-    RENDERING = "RENDERING"
-    REVIEWING = "REVIEWING"
-    EDITING = "EDITING"
-    DONE = "DONE"
-    FAILED = "FAILED"
+class ImageStatus(str, Enum):
+    UPLOADED = "uploaded"
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
 
 
-class ImageVersionKind(str, Enum):
-    FULL_RENDER = "FULL_RENDER"
-    LOCAL_EDIT = "LOCAL_EDIT"
+class VersionKind(str, Enum):
+    INITIAL = "initial"
+    REGENERATE = "regenerate"
+    SEMANTIC_EDIT = "semantic_edit"
+
+
+class JobType(str, Enum):
+    INITIAL = "initial"
+    REGENERATE = "regenerate"
+    SEMANTIC_EDIT = "semantic_edit"
 
 
 class JobStatus(str, Enum):
-    QUEUED = "QUEUED"
-    RUNNING = "RUNNING"
-    SUCCEEDED = "SUCCEEDED"
-    FAILED = "FAILED"
-    RETRYING = "RETRYING"
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"

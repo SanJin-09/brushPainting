@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from services.api.app.models.enums import ImageVersionKind, JobStatus, SessionStatus
+from services.api.app.models.enums import ImageStatus, JobStatus
 
 
 def utcnow() -> datetime:
@@ -17,86 +17,92 @@ class Base(DeclarativeBase):
     pass
 
 
-class Session(Base):
-    __tablename__ = "sessions"
+class Batch(Base):
+    __tablename__ = "batches"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    source_image_url: Mapped[str] = mapped_column(Text, nullable=False)
-    style_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    status: Mapped[str] = mapped_column(String(32), default=SessionStatus.UPLOADED.value, nullable=False)
-    seed: Mapped[int | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
-    versions: Mapped[list["ImageVersion"]] = relationship(
-        back_populates="session",
+    images: Mapped[list["ImageAsset"]] = relationship(
+        back_populates="batch",
         cascade="all, delete-orphan",
-        order_by="ImageVersion.created_at",
+        order_by="ImageAsset.created_at",
     )
-    jobs: Mapped[list["Job"]] = relationship(back_populates="session")
-
-    @property
-    def current_version(self) -> ImageVersion | None:
-        for version in reversed(self.versions):
-            if version.is_current:
-                return version
-        return None
-
-    @property
-    def current_version_id(self) -> str | None:
-        current = self.current_version
-        return current.id if current else None
+    jobs: Mapped[list["Job"]] = relationship(back_populates="batch")
 
 
-class ImageVersion(Base):
-    __tablename__ = "image_versions"
+class ImageAsset(Base):
+    __tablename__ = "images"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id", ondelete="CASCADE"), index=True)
-    parent_version_id: Mapped[str | None] = mapped_column(ForeignKey("image_versions.id", ondelete="SET NULL"), nullable=True)
-    kind: Mapped[str] = mapped_column(String(32), default=ImageVersionKind.FULL_RENDER.value, nullable=False)
-    image_url: Mapped[str] = mapped_column(Text, nullable=False)
-    seed: Mapped[int] = mapped_column(nullable=False)
-    params_hash: Mapped[str] = mapped_column(String(128), nullable=False)
-    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    prompt_override: Mapped[str | None] = mapped_column(Text, nullable=True)
-    mask_rle: Mapped[str | None] = mapped_column(Text, nullable=True)
-    bbox_x: Mapped[int | None] = mapped_column(nullable=True)
-    bbox_y: Mapped[int | None] = mapped_column(nullable=True)
-    bbox_w: Mapped[int | None] = mapped_column(nullable=True)
-    bbox_h: Mapped[int | None] = mapped_column(nullable=True)
+    batch_id: Mapped[str] = mapped_column(ForeignKey("batches.id", ondelete="CASCADE"), index=True)
+    original_filename: Mapped[str] = mapped_column(Text, nullable=False)
+    original_url: Mapped[str] = mapped_column(Text, nullable=False)
+    thumbnail_url: Mapped[str] = mapped_column(Text, nullable=False)
+    width: Mapped[int] = mapped_column(Integer, nullable=False)
+    height: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default=ImageStatus.UPLOADED.value, nullable=False)
+    active_version_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("versions.id", ondelete="SET NULL", use_alter=True),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+    batch: Mapped[Batch] = relationship(back_populates="images")
+    versions: Mapped[list["Version"]] = relationship(
+        back_populates="image",
+        cascade="all, delete-orphan",
+        foreign_keys="Version.image_id",
+        order_by="Version.created_at",
+    )
+    active_version: Mapped[Optional["Version"]] = relationship(foreign_keys=[active_version_id], post_update=True)
+    jobs: Mapped[list["Job"]] = relationship(back_populates="image")
+
+
+class Version(Base):
+    __tablename__ = "versions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    image_id: Mapped[str] = mapped_column(ForeignKey("images.id", ondelete="CASCADE"), index=True)
+    parent_version_id: Mapped[Optional[str]] = mapped_column(ForeignKey("versions.id", ondelete="SET NULL"), nullable=True)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    output_url: Mapped[str] = mapped_column(Text, nullable=False)
+    user_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    seed: Mapped[int] = mapped_column(Integer, nullable=False)
+    params_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
-    session: Mapped[Session] = relationship(back_populates="versions")
-    parent_version: Mapped["ImageVersion | None"] = relationship(remote_side="ImageVersion.id")
+    image: Mapped[ImageAsset] = relationship(back_populates="versions", foreign_keys=[image_id])
+    parent_version: Mapped[Optional["Version"]] = relationship(remote_side="Version.id")
 
 
 class Job(Base):
     __tablename__ = "jobs"
+    __table_args__ = (
+        Index(
+            "uq_jobs_active_image",
+            "image_id",
+            unique=True,
+            sqlite_where=text("status IN ('queued', 'running')"),
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    type: Mapped[str] = mapped_column(String(64), nullable=False)
-    session_id: Mapped[str | None] = mapped_column(ForeignKey("sessions.id", ondelete="SET NULL"), index=True)
-    payload_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default=JobStatus.QUEUED.value)
-    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    type: Mapped[str] = mapped_column(String(32), nullable=False)
+    batch_id: Mapped[Optional[str]] = mapped_column(ForeignKey("batches.id", ondelete="SET NULL"), index=True)
+    image_id: Mapped[Optional[str]] = mapped_column(ForeignKey("images.id", ondelete="SET NULL"), index=True)
+    status: Mapped[str] = mapped_column(String(32), default=JobStatus.QUEUED.value, nullable=False)
+    progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    progress_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    input_payload: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    result_version_id: Mapped[Optional[str]] = mapped_column(ForeignKey("versions.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    session: Mapped[Session | None] = relationship(back_populates="jobs")
-
-    @property
-    def progress_percent(self) -> int | None:
-        payload = self.payload_json or {}
-        value = payload.get("progress_percent")
-        if not isinstance(value, (int, float)):
-            return None
-        return max(0, min(100, int(value)))
-
-    @property
-    def progress_message(self) -> str | None:
-        payload = self.payload_json or {}
-        value = payload.get("progress_message")
-        if not isinstance(value, str):
-            return None
-        return value.strip() or None
+    batch: Mapped[Optional[Batch]] = relationship(back_populates="jobs")
+    image: Mapped[Optional[ImageAsset]] = relationship(back_populates="jobs")
+    result_version: Mapped[Optional[Version]] = relationship(foreign_keys=[result_version_id])

@@ -1,35 +1,42 @@
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
-
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
-from PIL import Image
 from sqlalchemy.orm import Session
 
-from model_runtime.mask_assist import refine_mask
 from services.api.app.db.database import get_db
-from services.api.app.models.entities import Job
-from services.api.app.models.enums import SessionStatus
-from services.api.app.schemas.job import JobRead
+from services.api.app.models.entities import Batch, ImageAsset, Job, Version
+from services.api.app.models.enums import ImageStatus, JobStatus, JobType
 from services.api.app.schemas.reference_review import (
     ReferenceReviewActionRequest,
     ReferenceReviewRead,
     ReferenceReviewUndoRequest,
 )
-from services.api.app.schemas.session import (
-    EditRequest,
+from services.api.app.schemas.workflow import (
+    BatchRead,
+    ExportRequest,
     ExportResponse,
-    ImageVersionRead,
-    MaskAssistRequest,
-    MaskAssistResponse,
-    RenderRequest,
-    SessionCreateResponse,
-    SessionRead,
-    StyleLockRequest,
+    ImageRead,
+    JobRead,
+    JobsResponse,
+    RegenerateRequest,
+    SemanticEditRequest,
+    UploadResponse,
+    VersionRead,
+    VersionsResponse,
 )
 from services.api.app.services.errors import ServiceError
+from services.api.app.services.image_service import (
+    active_job,
+    create_batch,
+    ensure_no_active_job,
+    get_batch,
+    get_image,
+    get_version,
+    latest_job,
+    next_seed,
+    validate_export_images,
+)
 from services.api.app.services.job_service import create_job, dispatch_job
 from services.api.app.services.reference_review_service import (
     apply_review_action,
@@ -37,105 +44,216 @@ from services.api.app.services.reference_review_service import (
     resolve_review_image_path,
     undo_review_action,
 )
-from services.api.app.services.session_service import (
-    adopt_version,
-    create_session,
-    current_export_version,
-    decode_and_validate_mask,
-    ensure_can_edit,
-    ensure_can_mask_assist,
-    ensure_can_render,
-    ensure_mask_inside_bbox,
-    get_session,
-    local_edit_capability,
-    lock_style,
-    mark_done,
-    next_seed,
-    validate_bbox,
-)
-from services.api.app.services.storage import LocalMediaStorage
+from services.api.app.services.storage import LocalStorage
 
-router = APIRouter(prefix="/api/v1", tags=["v1"])
-storage = LocalMediaStorage()
+router = APIRouter(prefix="/api", tags=["api"])
+storage = LocalStorage()
 
 
 def _raise_service_error(exc: ServiceError) -> None:
     raise HTTPException(status_code=exc.status_code, detail=str(exc))
 
 
-def _open_media_image(url: str) -> Image.Image:
-    path = storage.url_to_path(url)
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Media image not found")
-    return Image.open(path)
-
-
-def _serialize_session(session_obj) -> SessionRead:
-    supports_local_edit, disabled_reason = local_edit_capability()
-    return SessionRead(
-        id=session_obj.id,
-        source_image_url=session_obj.source_image_url,
-        style_id=session_obj.style_id,
-        status=session_obj.status,
-        seed=session_obj.seed,
-        current_version_id=session_obj.current_version_id,
-        created_at=session_obj.created_at,
-        updated_at=session_obj.updated_at,
-        supports_local_edit=supports_local_edit,
-        local_edit_disabled_reason=disabled_reason,
-        versions=[ImageVersionRead.model_validate(version) for version in session_obj.versions],
+def _version_read(version: Version | None) -> VersionRead | None:
+    if version is None:
+        return None
+    return VersionRead(
+        id=version.id,
+        image_id=version.image_id,
+        parent_version_id=version.parent_version_id,
+        kind=version.kind,
+        output_url=version.output_url,
+        user_prompt=version.user_prompt,
+        seed=version.seed,
+        params=version.params_json,
+        created_at=version.created_at,
     )
 
 
-@router.post("/sessions", response_model=SessionCreateResponse)
-def create_session_endpoint(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    try:
-        session_obj = create_session(db, file)
-    except ServiceError as exc:
-        _raise_service_error(exc)
-
-    return SessionCreateResponse(
-        session_id=session_obj.id,
-        source_image_url=session_obj.source_image_url,
-        status=session_obj.status,
+def _job_read(job: Job | None) -> JobRead | None:
+    if job is None:
+        return None
+    return JobRead(
+        id=job.id,
+        type=job.type,
+        batch_id=job.batch_id,
+        image_id=job.image_id,
+        status=job.status,
+        progress=job.progress,
+        progress_message=job.progress_message,
+        error=job.error,
+        result_version_id=job.result_version_id,
+        created_at=job.created_at,
+        started_at=job.started_at,
+        finished_at=job.finished_at,
     )
 
 
-@router.get("/sessions/{session_id}", response_model=SessionRead)
-def get_session_endpoint(session_id: str, db: Session = Depends(get_db)):
-    try:
-        return _serialize_session(get_session(db, session_id))
-    except ServiceError as exc:
-        _raise_service_error(exc)
-
-
-@router.post("/sessions/{session_id}/style/lock", response_model=SessionRead)
-def lock_style_endpoint(session_id: str, body: StyleLockRequest, db: Session = Depends(get_db)):
-    try:
-        return _serialize_session(lock_style(db, session_id, body.style_id))
-    except ServiceError as exc:
-        _raise_service_error(exc)
-
-
-@router.post("/sessions/{session_id}/render", response_model=JobRead)
-def render_session_endpoint(session_id: str, body: RenderRequest, db: Session = Depends(get_db)):
-    try:
-        session_obj = get_session(db, session_id)
-        ensure_can_render(session_obj)
-    except ServiceError as exc:
-        _raise_service_error(exc)
-
-    seed = next_seed(body.seed)
-    session_obj.seed = seed
-    session_obj.status = SessionStatus.RENDERING.value
-    job = create_job(
-        db,
-        job_type="render_full",
-        session_id=session_id,
-        payload={"seed": seed},
+def _image_read(image: ImageAsset) -> ImageRead:
+    return ImageRead(
+        id=image.id,
+        batch_id=image.batch_id,
+        filename=image.original_filename,
+        original_url=image.original_url,
+        thumbnail_url=image.thumbnail_url,
+        width=image.width,
+        height=image.height,
+        status=image.status,
+        active_version_id=image.active_version_id,
+        active_version=_version_read(image.active_version),
+        latest_job=_job_read(latest_job(image)),
+        created_at=image.created_at,
+        updated_at=image.updated_at,
     )
-    dispatch_job("services.worker.tasks.render_full", job.id, session_id, seed)
-    return job
+
+
+def _batch_status(batch: Batch) -> str:
+    statuses = {image.status for image in batch.images}
+    if ImageStatus.RUNNING.value in statuses:
+        return ImageStatus.RUNNING.value
+    if ImageStatus.QUEUED.value in statuses:
+        return ImageStatus.QUEUED.value
+    if statuses == {ImageStatus.SUCCEEDED.value}:
+        return ImageStatus.SUCCEEDED.value
+    if ImageStatus.FAILED.value in statuses:
+        return ImageStatus.FAILED.value
+    return ImageStatus.UPLOADED.value
+
+
+def _batch_read(batch: Batch) -> BatchRead:
+    return BatchRead(
+        id=batch.id,
+        status=_batch_status(batch),
+        images=[_image_read(image) for image in batch.images],
+        created_at=batch.created_at,
+        updated_at=batch.updated_at,
+    )
+
+
+def _dispatch_or_fail(db: Session, job: Job, image: ImageAsset) -> None:
+    try:
+        dispatch_job(job.id)
+    except ServiceError:
+        job.status = JobStatus.FAILED.value
+        job.error = "任务提交失败"
+        image.status = ImageStatus.FAILED.value
+        db.commit()
+        raise
+
+
+@router.post("/images/upload", response_model=UploadResponse)
+def upload_images(files: list[UploadFile] = File(...), db: Session = Depends(get_db)):
+    try:
+        batch = create_batch(db, files)
+        return UploadResponse(batch_id=batch.id, images=[_image_read(image) for image in batch.images])
+    except ServiceError as exc:
+        _raise_service_error(exc)
+
+
+@router.get("/batches/{batch_id}", response_model=BatchRead)
+def read_batch(batch_id: str, db: Session = Depends(get_db)):
+    try:
+        return _batch_read(get_batch(db, batch_id))
+    except ServiceError as exc:
+        _raise_service_error(exc)
+
+
+@router.post("/batches/{batch_id}/generate", response_model=JobsResponse)
+def generate_batch(batch_id: str, db: Session = Depends(get_db)):
+    try:
+        batch = get_batch(db, batch_id)
+        jobs: list[Job] = []
+        for image in batch.images:
+            existing = active_job(image)
+            if existing:
+                jobs.append(existing)
+                continue
+            if image.versions:
+                prior = next((job for job in reversed(image.jobs) if job.type == JobType.INITIAL.value), None)
+                if prior:
+                    jobs.append(prior)
+                continue
+            seed = next_seed(None)
+            job = create_job(db, job_type=JobType.INITIAL.value, image=image, payload={"seed": seed})
+            _dispatch_or_fail(db, job, image)
+            jobs.append(job)
+        return JobsResponse(jobs=[_job_read(job) for job in jobs if job is not None])
+    except ServiceError as exc:
+        _raise_service_error(exc)
+
+
+@router.post("/images/{image_id}/regenerate", response_model=JobRead)
+def regenerate_image(image_id: str, body: RegenerateRequest = RegenerateRequest(), db: Session = Depends(get_db)):
+    try:
+        image = get_image(db, image_id)
+        ensure_no_active_job(image)
+        job = create_job(
+            db,
+            job_type=JobType.REGENERATE.value,
+            image=image,
+            payload={"seed": next_seed(body.seed)},
+        )
+        _dispatch_or_fail(db, job, image)
+        return _job_read(job)
+    except ServiceError as exc:
+        _raise_service_error(exc)
+
+
+@router.post("/images/{image_id}/edit", response_model=JobRead)
+def semantic_edit(image_id: str, body: SemanticEditRequest, db: Session = Depends(get_db)):
+    try:
+        image = get_image(db, image_id)
+        ensure_no_active_job(image)
+        get_version(image, body.version_id)
+        job = create_job(
+            db,
+            job_type=JobType.SEMANTIC_EDIT.value,
+            image=image,
+            payload={
+                "seed": next_seed(body.seed),
+                "version_id": body.version_id,
+                "user_prompt": body.user_prompt.strip(),
+            },
+        )
+        _dispatch_or_fail(db, job, image)
+        return _job_read(job)
+    except ServiceError as exc:
+        _raise_service_error(exc)
+
+
+@router.get("/jobs/{job_id}", response_model=JobRead)
+def read_job(job_id: str, db: Session = Depends(get_db)):
+    job = db.get(Job, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"任务 {job_id} 不存在")
+    return _job_read(job)
+
+
+@router.get("/images/{image_id}/versions", response_model=VersionsResponse)
+def read_versions(image_id: str, db: Session = Depends(get_db)):
+    try:
+        image = get_image(db, image_id)
+        return VersionsResponse(
+            image_id=image.id,
+            active_version_id=image.active_version_id,
+            versions=[_version_read(version) for version in reversed(image.versions)],
+        )
+    except ServiceError as exc:
+        _raise_service_error(exc)
+
+
+@router.post("/batches/{batch_id}/export", response_model=ExportResponse)
+def export_batch(batch_id: str, body: ExportRequest = ExportRequest(), db: Session = Depends(get_db)):
+    try:
+        batch = get_batch(db, batch_id)
+        images = validate_export_images(batch, body.image_ids)
+        zip_url = storage.create_export(
+            batch.id,
+            [(image.id, image.original_filename, image.active_version.output_url) for image in images if image.active_version],
+        )
+        return ExportResponse(batch_id=batch.id, zip_url=zip_url)
+    except ServiceError as exc:
+        _raise_service_error(exc)
 
 
 @router.get("/reference-review", response_model=ReferenceReviewRead)
@@ -153,10 +271,9 @@ def get_reference_review_image_endpoint(
     max_edge: int | None = Query(default=None, ge=256, le=4096),
 ):
     try:
-        path = resolve_review_image_path(directory, relative_path, max_edge=max_edge)
+        return FileResponse(resolve_review_image_path(directory, relative_path, max_edge=max_edge))
     except ServiceError as exc:
         _raise_service_error(exc)
-    return FileResponse(path)
 
 
 @router.post("/reference-review/action", response_model=ReferenceReviewRead)
@@ -173,125 +290,3 @@ def reference_review_undo_endpoint(body: ReferenceReviewUndoRequest):
         return undo_review_action(body.directory)
     except ServiceError as exc:
         _raise_service_error(exc)
-
-
-@router.post("/sessions/{session_id}/mask-assist", response_model=MaskAssistResponse)
-def mask_assist_endpoint(session_id: str, body: MaskAssistRequest, db: Session = Depends(get_db)):
-    try:
-        session_obj = get_session(db, session_id)
-        current_version = ensure_can_mask_assist(session_obj)
-        with _open_media_image(current_version.image_url) as current_image:
-            mask = decode_and_validate_mask(body.mask_rle, image_size=current_image.size)
-            refined = refine_mask(current_image.convert("RGB"), mask)
-        return MaskAssistResponse(
-            mask_rle=refined.mask_rle,
-            bbox_x=refined.bbox_x,
-            bbox_y=refined.bbox_y,
-            bbox_w=refined.bbox_w,
-            bbox_h=refined.bbox_h,
-        )
-    except ServiceError as exc:
-        _raise_service_error(exc)
-
-
-@router.post("/sessions/{session_id}/edits", response_model=JobRead)
-def create_edit_endpoint(session_id: str, body: EditRequest, db: Session = Depends(get_db)):
-    try:
-        session_obj = get_session(db, session_id)
-        current_version = ensure_can_edit(session_obj)
-        with _open_media_image(current_version.image_url) as current_image:
-            mask = decode_and_validate_mask(body.mask_rle, image_size=current_image.size)
-            validate_bbox(body.bbox_x, body.bbox_y, body.bbox_w, body.bbox_h, image_size=current_image.size)
-            ensure_mask_inside_bbox(mask, body.bbox_x, body.bbox_y, body.bbox_w, body.bbox_h)
-    except ServiceError as exc:
-        _raise_service_error(exc)
-
-    seed = next_seed(body.seed)
-    session_obj.seed = seed
-    session_obj.status = SessionStatus.EDITING.value
-    job = create_job(
-        db,
-        job_type="edit_mask",
-        session_id=session_id,
-        payload={
-            "seed": seed,
-            "mask_rle": body.mask_rle,
-            "bbox": [body.bbox_x, body.bbox_y, body.bbox_w, body.bbox_h],
-            "prompt_override": body.prompt_override,
-        },
-    )
-    dispatch_job(
-        "services.worker.tasks.edit_mask",
-        job.id,
-        session_id,
-        seed,
-        body.mask_rle,
-        body.bbox_x,
-        body.bbox_y,
-        body.bbox_w,
-        body.bbox_h,
-        body.prompt_override,
-    )
-    return job
-
-
-@router.post("/sessions/{session_id}/versions/{version_id}/adopt", response_model=SessionRead)
-def adopt_version_endpoint(session_id: str, version_id: str, db: Session = Depends(get_db)):
-    try:
-        return _serialize_session(adopt_version(db, session_id, version_id))
-    except ServiceError as exc:
-        _raise_service_error(exc)
-
-
-@router.post("/sessions/{session_id}/export", response_model=ExportResponse)
-def export_session_endpoint(session_id: str, db: Session = Depends(get_db)):
-    try:
-        session_obj = get_session(db, session_id)
-        current = current_export_version(session_obj)
-    except ServiceError as exc:
-        _raise_service_error(exc)
-
-    manifest = {
-        "session_id": session_obj.id,
-        "style_id": session_obj.style_id,
-        "status": SessionStatus.DONE.value,
-        "exported_at": datetime.now(timezone.utc).isoformat(),
-        "seed": session_obj.seed,
-        "source_image_url": session_obj.source_image_url,
-        "current_version_id": current.id,
-        "final_image_url": current.image_url,
-        "versions": [
-            {
-                "id": version.id,
-                "session_id": version.session_id,
-                "parent_version_id": version.parent_version_id,
-                "kind": version.kind,
-                "image_url": version.image_url,
-                "seed": version.seed,
-                "params_hash": version.params_hash,
-                "is_current": version.is_current,
-                "prompt_override": version.prompt_override,
-                "mask_rle": version.mask_rle,
-                "bbox": [version.bbox_x, version.bbox_y, version.bbox_w, version.bbox_h]
-                if version.bbox_x is not None
-                else None,
-                "created_at": version.created_at.isoformat(),
-            }
-            for version in session_obj.versions
-        ],
-    }
-    manifest_url = storage.save_json(
-        session_id,
-        "export/manifest.json",
-        json.dumps(manifest, ensure_ascii=False, indent=2),
-    )
-    mark_done(db, session_obj)
-    return ExportResponse(session_id=session_id, final_image_url=current.image_url, manifest_url=manifest_url)
-
-
-@router.get("/jobs/{job_id}", response_model=JobRead)
-def get_job_endpoint(job_id: str, db: Session = Depends(get_db)):
-    job = db.get(Job, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
-    return job

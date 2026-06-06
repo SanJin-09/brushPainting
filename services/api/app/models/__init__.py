@@ -1,12 +1,14 @@
-from services.api.app.models.entities import Base, ImageVersion, Job, Session
-from services.api.app.models.enums import ImageVersionKind, JobStatus, SessionStatus
+from services.api.app.models.entities import Base, Batch, ImageAsset, Job, Version
+from services.api.app.models.enums import ImageStatus, JobStatus, JobType, VersionKind
 
 __all__ = [
     "Base",
-    "Session",
-    "ImageVersion",
+    "Batch",
+    "ImageAsset",
+    "Version",
     "Job",
-    "SessionStatus",
-    "ImageVersionKind",
+    "ImageStatus",
+    "VersionKind",
+    "JobType",
     "JobStatus",
 ]
