@@ -6,7 +6,7 @@ import {
   getReferenceReviewImageUrl,
   undoReferenceReview
 } from "../lib/api";
-import type { ReferenceReviewState } from "../lib/types";
+import type { ReferenceReviewRead } from "../lib/types";
 
 const DEFAULT_DIRECTORY = "official_zero_auth_all/met_open_access";
 
@@ -25,7 +25,7 @@ export default function ReferenceReviewPage() {
   const searchDirectory = searchParams.get("directory")?.trim() || DEFAULT_DIRECTORY;
   const [directoryInput, setDirectoryInput] = useState(searchDirectory);
   const [directory, setDirectory] = useState(searchDirectory);
-  const [review, setReview] = useState<ReferenceReviewState | null>(null);
+  const [review, setReview] = useState<ReferenceReviewRead | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

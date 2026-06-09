@@ -1,3 +1,5 @@
+/* ===== 1. 全局基础 ===== */
+
 :root {
   font-family: "Noto Sans SC", "Source Han Sans SC", sans-serif;
   color: #2a2118;
@@ -24,18 +26,12 @@ img {
   max-width: 100%;
 }
 
+/* ===== 2. 布局 ===== */
+
 .page {
   max-width: 1260px;
   margin: 0 auto;
   padding: 24px;
-}
-
-.upload-page {
-  padding-top: 80px;
-}
-
-.workspace-page {
-  padding-bottom: 48px;
 }
 
 .panel {
@@ -53,13 +49,14 @@ img {
   margin-bottom: 10px;
 }
 
-.group,
-.control-panel .group {
+.group {
   display: flex;
   gap: 10px;
   align-items: center;
   margin-bottom: 12px;
 }
+
+/* ===== 3. 表单控件 ===== */
 
 input,
 button {
@@ -93,83 +90,173 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.workspace-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.95fr);
+/* ===== 4. 导航栏 ===== */
+
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: rgba(255, 248, 237, 0.95);
+  border-bottom: 1px solid rgba(129, 92, 47, 0.2);
+  box-shadow: 0 2px 8px rgba(76, 47, 15, 0.06);
+}
+
+.navbar-brand a {
+  font-size: 18px;
+  font-weight: 600;
+  text-decoration: none;
+  color: #4c2f0f;
+}
+
+.navbar-links {
+  display: flex;
   gap: 16px;
 }
 
-.mask-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.mask-editor-stage {
-  position: relative;
-  border-radius: 16px;
-  overflow: hidden;
-  border: 1px solid #d0b085;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(249, 240, 226, 0.92)),
-    repeating-linear-gradient(0deg, rgba(184, 153, 109, 0.08), rgba(184, 153, 109, 0.08) 2px, transparent 2px, transparent 9px);
-}
-
-.mask-editor-image,
-.mask-editor-canvas {
-  width: 100%;
-  height: auto;
-}
-
-.mask-editor-image {
-  opacity: 0.28;
-  transition: opacity 0.2s ease;
-}
-
-.mask-editor-image.is-ready {
-  opacity: 1;
-}
-
-.mask-editor-canvas {
-  position: absolute;
-  inset: 0;
-  touch-action: none;
-  cursor: crosshair;
-}
-
-.mask-editor-canvas.is-disabled {
-  cursor: not-allowed;
-}
-
-.mask-editor-hint,
-.selection-meta {
+.navbar-links a {
+  text-decoration: none;
   color: #6b5538;
-  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
-.preview-stack {
+.navbar-links a:hover {
+  background: rgba(94, 58, 23, 0.08);
+  color: #4c2f0f;
+}
+
+.navbar-links a.active {
+  background: rgba(94, 58, 23, 0.12);
+  color: #4c2f0f;
+  font-weight: 500;
+}
+
+/* ===== 5. 图片网格 ===== */
+
+.image-grid {
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 14px;
 }
 
-.preview-stack figure,
-.compose-list figure {
-  margin: 0;
+.image-card {
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(176, 135, 79, 0.3);
+  background: rgba(255, 251, 243, 0.94);
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.preview-image,
-.compose-list img {
+.image-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(94, 58, 23, 0.12);
+}
+
+.image-card img {
   width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+
+.image-info {
+  display: grid;
+  gap: 4px;
+}
+
+.filename {
+  font-size: 13px;
+  color: #5a4a32;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== 6. 批次详情 ===== */
+
+.batch-info {
+  display: grid;
+  gap: 8px;
+}
+
+.job-list {
+  display: grid;
+  gap: 8px;
+}
+
+.job-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255, 250, 241, 0.9);
+  border: 1px solid rgba(176, 135, 79, 0.2);
+}
+
+/* ===== 7. 图片详情 ===== */
+
+.image-detail-page {
+  padding-bottom: 48px;
+}
+
+.active-version {
+  display: grid;
+  gap: 10px;
+}
+
+.active-version img {
+  width: 100%;
+  max-width: 600px;
   border-radius: 14px;
   border: 1px solid rgba(129, 92, 47, 0.18);
   box-shadow: 0 10px 26px rgba(46, 29, 10, 0.08);
 }
 
-.preview-stack figcaption,
-.compose-list figcaption {
-  margin-top: 8px;
-  color: #6f5535;
+.semantic-edit {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(176, 135, 79, 0.2);
 }
+
+.semantic-edit h3 {
+  margin: 0;
+}
+
+.semantic-edit select,
+.semantic-edit input {
+  width: 100%;
+}
+
+.job-status {
+  display: grid;
+  gap: 6px;
+}
+
+.version-info {
+  font-size: 12px;
+  color: #5a4a32;
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.version-info .prompt {
+  color: #6b5538;
+  font-style: italic;
+}
+
+.version-info .time {
+  color: #8e7a5e;
+}
+
+/* ===== 8. 版本卡片 ===== */
 
 .version-grid {
   display: grid;
@@ -185,14 +272,9 @@ button:disabled {
   transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.version-card.is-current {
+.version-card.active {
   border-color: rgba(46, 130, 74, 0.65);
   box-shadow: 0 10px 20px rgba(46, 130, 74, 0.12);
-}
-
-.version-card.is-selected {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(94, 58, 23, 0.14);
 }
 
 .version-card img {
@@ -223,40 +305,7 @@ button:disabled {
   gap: 8px;
 }
 
-.badge {
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  border: 1px solid #c4a57a;
-  background: rgba(255, 247, 227, 0.9);
-}
-
-.badge-succeeded,
-.badge-done,
-.badge-current {
-  background: #def7df;
-}
-
-.badge-failed {
-  background: #ffd7d7;
-}
-
-.badge-running,
-.badge-rendering,
-.badge-editing {
-  background: #fff1c9;
-}
-
-.badge-reviewing,
-.badge-style_locked {
-  background: #e6eefc;
-}
-
-.export-box,
-.compose-list {
-  display: grid;
-  gap: 12px;
-}
+/* ===== 9. 任务状态 ===== */
 
 .job-box {
   display: grid;
@@ -265,6 +314,7 @@ button:disabled {
   border-radius: 14px;
   border: 1px solid rgba(176, 135, 79, 0.34);
   background: linear-gradient(180deg, rgba(255, 252, 246, 0.96), rgba(248, 239, 224, 0.94));
+  margin-top: 8px;
 }
 
 .job-box-head,
@@ -315,14 +365,37 @@ button:disabled {
   font-size: 13px;
 }
 
-.empty {
-  color: #8e6e44;
+/* ===== 10. 状态标签 ===== */
+
+.badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid #c4a57a;
+  background: rgba(255, 247, 227, 0.9);
 }
 
-.error {
-  margin-top: 10px;
-  color: #b31212;
+.badge-uploaded {
+  background: #e6eefc;
 }
+
+.badge-queued {
+  background: #f0e6fc;
+}
+
+.badge-succeeded {
+  background: #def7df;
+}
+
+.badge-failed {
+  background: #ffd7d7;
+}
+
+.badge-running {
+  background: #fff1c9;
+}
+
+/* ===== 11. 筛图页 ===== */
 
 .review-page {
   max-width: 1440px;
@@ -465,6 +538,19 @@ button:disabled {
   line-height: 1.7;
 }
 
+/* ===== 12. 通用工具 ===== */
+
+.empty {
+  color: #8e6e44;
+}
+
+.error {
+  margin-top: 10px;
+  color: #b31212;
+}
+
+/* ===== 13. 响应式 ===== */
+
 @media (max-width: 960px) {
   .review-toolbar-head,
   .review-shell {
@@ -481,32 +567,42 @@ button:disabled {
   }
 }
 
-.row {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.job-box {
-  margin-top: 8px;
-}
-
-@media (max-width: 980px) {
-  .workspace-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (max-width: 768px) {
   .page {
     padding: 12px;
   }
 
   .group,
-  .control-panel .group,
   .actions,
   .topbar {
     flex-wrap: wrap;
+  }
+
+  .navbar {
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 16px;
+  }
+
+  .navbar-links {
+    gap: 10px;
+  }
+
+  .image-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+
+  .version-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .semantic-edit select,
+  .semantic-edit input {
+    width: 100%;
+  }
+
+  .job-item {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

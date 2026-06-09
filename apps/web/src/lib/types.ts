@@ -1,17 +1,13 @@
-// ===== 枚举（来自 services/api/app/models/enums.py）=====
-
 export type ImageStatus = "uploaded" | "queued" | "running" | "succeeded" | "failed";
 export type VersionKind = "initial" | "regenerate" | "semantic_edit";
 export type JobType = "initial" | "regenerate" | "semantic_edit";
 export type JobStatus = "queued" | "running" | "succeeded" | "failed";
 
-// ===== 核心数据模型（来自 services/api/app/schemas/workflow.py）=====
-
 export type VersionRead = {
   id: string;
   image_id: string;
   parent_version_id: string | null;
-  kind: string;
+  kind: VersionKind;
   output_url: string;
   user_prompt: string | null;
   seed: number;
@@ -21,10 +17,10 @@ export type VersionRead = {
 
 export type JobRead = {
   id: string;
-  type: string;
+  type: JobType;
   batch_id: string | null;
   image_id: string | null;
-  status: string;
+  status: JobStatus;
   progress: number;
   progress_message: string | null;
   error: string | null;
@@ -42,7 +38,7 @@ export type ImageRead = {
   thumbnail_url: string;
   width: number;
   height: number;
-  status: string;
+  status: ImageStatus;
   active_version_id: string | null;
   active_version: VersionRead | null;
   latest_job: JobRead | null;
@@ -52,13 +48,11 @@ export type ImageRead = {
 
 export type BatchRead = {
   id: string;
-  status: string;
+  status: ImageStatus;
   images: ImageRead[];
   created_at: string;
   updated_at: string;
 };
-
-// ===== 请求体（来自 workflow.py）=====
 
 export type RegenerateRequest = {
   seed?: number;
@@ -73,8 +67,6 @@ export type SemanticEditRequest = {
 export type ExportRequest = {
   image_ids?: string[];
 };
-
-// ===== 响应体（来自 workflow.py）=====
 
 export type UploadResponse = {
   batch_id: string;
@@ -95,8 +87,6 @@ export type ExportResponse = {
   batch_id: string;
   zip_url: string;
 };
-
-// ===== 参考图审核（来自 reference_review.py）=====
 
 export type ReferenceReviewImageRead = {
   file_name: string;
