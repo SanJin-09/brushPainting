@@ -1,7 +1,8 @@
 import React from "react";
+import type { ImageStatus, JobStatus } from "../lib/types";
 
-type Props = { status: string };
+type Props = { status: ImageStatus | JobStatus };
 
 export default function StatusBadge({ status }: Props) {
-  return <span className={`badge badge-${status.toLowerCase()}`}>{status}</span>;
+  return <span className={`badge badge-${status}`}>{status}</span>;
 }

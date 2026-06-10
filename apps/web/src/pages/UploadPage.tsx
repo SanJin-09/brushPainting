@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
-import { createSession } from "../lib/api";
+import { uploadImages } from "../lib/api";
 
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -18,8 +18,8 @@ export default function UploadPage() {
     setBusy(true);
     setError(null);
     try {
-      const resp = await createSession(file);
-      navigate(`/sessions/${resp.session_id}`);
+      const resp = await uploadImages([file]);
+      navigate(`/batches/${resp.batch_id}`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "上传失败";
       setError(message);
@@ -34,7 +34,7 @@ export default function UploadPage() {
         <Link to="/reference-review">前往人工筛图</Link>
       </div>
       <h1>工笔重绘工作台</h1>
-      <p>上传原图后先统一整图风格化，再针对不满意区域做掩码局部重绘。</p>
+      <p>上传图片后批量生成工笔风格画作。</p>
 
       <form onSubmit={onSubmit} className="panel">
         <input
@@ -43,7 +43,7 @@ export default function UploadPage() {
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         />
         <button type="submit" disabled={busy}>
-          {busy ? "上传中..." : "创建会话"}
+          {busy ? "上传中..." : "上传并创建批次"}
         </button>
       </form>
       {error ? <div className="error">{error}</div> : null}

@@ -1,88 +1,86 @@
 import axios from "axios";
-import type { Job, MaskAssistResult, ReferenceReviewState, SessionDetail } from "./types";
+import type {
+  UploadResponse,
+  BatchRead,
+  JobsResponse,
+  JobRead,
+  VersionsResponse,
+  ExportResponse,
+  ReferenceReviewRead,
+  RegenerateRequest,
+  SemanticEditRequest,
+  ExportRequest,
+  ReferenceReviewActionRequest,
+  ReferenceReviewUndoRequest,
+} from "./types";
 
-const API_BASE = (import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api/v1").replace(/\/+$/, "");
+const API_BASE = (import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api").replace(/\/+$/, "");
 
 const api = axios.create({
   baseURL: API_BASE
 });
 
-export async function createSession(file: File) {
+//主流程接口
+
+export async function uploadImages(files: File[]) {
   const formData = new FormData();
-  formData.append("file", file);
-  const { data } = await api.post<{ session_id: string; source_image_url: string; status: string }>("/sessions", formData, {
+  files.forEach((f) => formData.append("files", f));
+  const { data } = await api.post<UploadResponse>("/images/upload", formData, {
     headers: { "Content-Type": "multipart/form-data" }
   });
   return data;
 }
 
-export async function getSession(sessionId: string) {
-  const { data } = await api.get<SessionDetail>(`/sessions/${sessionId}`);
+export async function getBatch(batchId: string) {
+  const { data } = await api.get<BatchRead>(`/batches/${batchId}`);
   return data;
 }
 
-export async function lockStyle(sessionId: string, styleId: string) {
-  const { data } = await api.post<SessionDetail>(`/sessions/${sessionId}/style/lock`, { style_id: styleId });
+export async function generateBatch(batchId: string) {
+  const { data } = await api.post<JobsResponse>(`/batches/${batchId}/generate`);
   return data;
 }
 
-export async function renderSession(sessionId: string, seed?: number) {
-  const { data } = await api.post<Job>(`/sessions/${sessionId}/render`, { seed });
+export async function regenerateImage(imageId: string, body?: RegenerateRequest) {
+  const { data } = await api.post<JobRead>(`/images/${imageId}/regenerate`, body ?? {});
   return data;
 }
 
-export async function maskAssist(sessionId: string, maskRle: string) {
-  const { data } = await api.post<MaskAssistResult>(`/sessions/${sessionId}/mask-assist`, { mask_rle: maskRle });
-  return data;
-}
-
-export async function createEdit(
-  sessionId: string,
-  payload: {
-    mask_rle: string;
-    bbox_x: number;
-    bbox_y: number;
-    bbox_w: number;
-    bbox_h: number;
-    seed?: number;
-    prompt_override?: string;
-  }
-) {
-  const { data } = await api.post<Job>(`/sessions/${sessionId}/edits`, payload);
-  return data;
-}
-
-export async function adoptVersion(sessionId: string, versionId: string) {
-  const { data } = await api.post<SessionDetail>(`/sessions/${sessionId}/versions/${versionId}/adopt`, {});
-  return data;
-}
-
-export async function exportSession(sessionId: string) {
-  const { data } = await api.post<{ session_id: string; final_image_url: string; manifest_url: string }>(`/sessions/${sessionId}/export`, {});
+export async function semanticEdit(imageId: string, body: SemanticEditRequest) {
+  const { data } = await api.post<JobRead>(`/images/${imageId}/edit`, body);
   return data;
 }
 
 export async function getJob(jobId: string) {
-  const { data } = await api.get<Job>(`/jobs/${jobId}`);
+  const { data } = await api.get<JobRead>(`/jobs/${jobId}`);
   return data;
 }
+
+export async function getImageVersions(imageId: string) {
+  const { data } = await api.get<VersionsResponse>(`/images/${imageId}/versions`);
+  return data;
+}
+
+export async function exportBatch(batchId: string, body?: ExportRequest) {
+  const { data } = await api.post<ExportResponse>(`/batches/${batchId}/export`, body ?? {});
+  return data;
+}
+
+// ===== 参考图审核接口 =====
 
 export async function getReferenceReview(directory: string) {
-  const { data } = await api.get<ReferenceReviewState>("/reference-review", { params: { directory } });
+  const { data } = await api.get<ReferenceReviewRead>("/reference-review", { params: { directory } });
   return data;
 }
 
-export async function applyReferenceReviewAction(payload: {
-  directory: string;
-  relative_path: string;
-  action: "keep" | "discard";
-}) {
-  const { data } = await api.post<ReferenceReviewState>("/reference-review/action", payload);
+export async function applyReferenceReviewAction(payload: ReferenceReviewActionRequest) {
+  const { data } = await api.post<ReferenceReviewRead>("/reference-review/action", payload);
   return data;
 }
 
 export async function undoReferenceReview(directory: string) {
-  const { data } = await api.post<ReferenceReviewState>("/reference-review/undo", { directory });
+  const body: ReferenceReviewUndoRequest = { directory };
+  const { data } = await api.post<ReferenceReviewRead>("/reference-review/undo", body);
   return data;
 }
 

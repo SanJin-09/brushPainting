@@ -1,23 +1,27 @@
 import { create } from "zustand";
-import type { Job, SessionDetail } from "./lib/types";
+import type { BatchRead, ImageRead, JobRead } from "./lib/types";
 
 type AppState = {
-  session: SessionDetail | null;
+  batch: BatchRead | null;
+  selectedImage: ImageRead | null;
   busy: boolean;
-  lastJob: Job | null;
+  lastJob: JobRead | null;
   error: string | null;
-  setSession: (session: SessionDetail | null) => void;
+  setBatch: (batch: BatchRead | null) => void;
+  setSelectedImage: (image: ImageRead | null) => void;
   setBusy: (busy: boolean) => void;
-  setLastJob: (job: Job | null) => void;
+  setLastJob: (job: JobRead | null) => void;
   setError: (error: string | null) => void;
 };
 
 export const useAppStore = create<AppState>((set) => ({
-  session: null,
+  batch: null,
+  selectedImage: null,
   busy: false,
   lastJob: null,
   error: null,
-  setSession: (session) => set({ session }),
+  setBatch: (batch) => set({ batch }),
+  setSelectedImage: (image) => set({ selectedImage: image }),
   setBusy: (busy) => set({ busy }),
   setLastJob: (lastJob) => set({ lastJob }),
   setError: (error) => set({ error })
