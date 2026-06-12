@@ -1,24 +1,27 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { uploadImages } from "../lib/api";
+import ImageUploader, { type ImageUploaderHandle } from "../components/ImageUploader";
 
 export default function UploadPage() {
-  const [file, setFile] = useState<File | null>(null);
+  const uploaderRef = useRef<ImageUploaderHandle>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!file) {
+  const handleUpload = async () => {
+    const files = uploaderRef.current?.getFiles() ?? [];
+
+    if (files.length === 0) {
       setError("请先选择图片");
       return;
     }
+
     setBusy(true);
     setError(null);
     try {
-      const resp = await uploadImages([file]);
+      const resp = await uploadImages(files);
+      uploaderRef.current?.clear();
       navigate(`/batches/${resp.batch_id}`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "上传失败";
@@ -30,23 +33,34 @@ export default function UploadPage() {
 
   return (
     <div className="page upload-page">
-      <div className="topbar">
-        <Link to="/reference-review">前往人工筛图</Link>
-      </div>
       <h1>工笔重绘工作台</h1>
       <p>上传图片后批量生成工笔风格画作。</p>
 
-      <form onSubmit={onSubmit} className="panel">
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-        />
-        <button type="submit" disabled={busy}>
+      <div className="panel">
+        <ImageUploader ref={uploaderRef} disabled={busy} />
+        <button
+          type="button"
+          onClick={handleUpload}
+          disabled={busy}
+          style={{ marginTop: 14, width: "100%" }}
+        >
           {busy ? "上传中..." : "上传并创建批次"}
         </button>
-      </form>
-      {error ? <div className="error">{error}</div> : null}
+      </div>
+      {error && (
+        <div className="dialog-overlay" onClick={() => setError(null)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="dialog-header">
+              <span className="dialog-icon">!</span>
+              <h3>提示</h3>
+            </div>
+            <p className="dialog-body">{error}</p>
+            <button className="dialog-close" onClick={() => setError(null)}>
+              确定
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
