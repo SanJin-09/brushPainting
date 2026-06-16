@@ -96,3 +96,35 @@ class VersionsResponse(BaseModel):
 class ExportResponse(BaseModel):
     batch_id: str
     zip_url: str
+
+
+class SegmentRequest(BaseModel):
+    user_prompt: str = Field(min_length=1, max_length=200)
+
+    @field_validator("user_prompt")
+    @classmethod
+    def validate_user_prompt(cls, value: str) -> str:
+        prompt = value.strip()
+        if not prompt:
+            raise ValueError("user_prompt 不能为空")
+        return prompt
+
+class SegmentRead(BaseModel):
+    id: str
+    source_image_id: str
+    user_prompt: str
+    region_index: int
+    confidence: float
+    mask_url: str | None
+    crop_url: str
+    bbox_x: int
+    bbox_y: int
+    bbox_w: int
+    bbox_h: int
+    area_ratio: float
+    created_at: datetime
+
+class SegmentsResponse(BaseModel):
+    source_image_id: str
+    user_prompt: str
+    segments: list[SegmentRead]
