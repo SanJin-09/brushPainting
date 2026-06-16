@@ -1,17 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from services.api.app.db.database import get_db
 from services.api.app.models.entities import Batch, ImageAsset, Job, Version
 from services.api.app.models.enums import ImageStatus, JobStatus, JobType
-from services.api.app.schemas.reference_review import (
-    ReferenceReviewActionRequest,
-    ReferenceReviewRead,
-    ReferenceReviewUndoRequest,
-)
 from services.api.app.schemas.workflow import (
     BatchRead,
     ExportRequest,
@@ -38,12 +32,6 @@ from services.api.app.services.image_service import (
     validate_export_images,
 )
 from services.api.app.services.job_service import create_job, dispatch_job
-from services.api.app.services.reference_review_service import (
-    apply_review_action,
-    get_review_state,
-    resolve_review_image_path,
-    undo_review_action,
-)
 from services.api.app.services.storage import LocalStorage
 
 router = APIRouter(prefix="/api", tags=["api"])
@@ -255,38 +243,3 @@ def export_batch(batch_id: str, body: ExportRequest = ExportRequest(), db: Sessi
     except ServiceError as exc:
         _raise_service_error(exc)
 
-
-@router.get("/reference-review", response_model=ReferenceReviewRead)
-def get_reference_review_endpoint(directory: str = Query(..., min_length=1)):
-    try:
-        return get_review_state(directory)
-    except ServiceError as exc:
-        _raise_service_error(exc)
-
-
-@router.get("/reference-review/image")
-def get_reference_review_image_endpoint(
-    directory: str = Query(..., min_length=1),
-    relative_path: str = Query(..., min_length=1),
-    max_edge: int | None = Query(default=None, ge=256, le=4096),
-):
-    try:
-        return FileResponse(resolve_review_image_path(directory, relative_path, max_edge=max_edge))
-    except ServiceError as exc:
-        _raise_service_error(exc)
-
-
-@router.post("/reference-review/action", response_model=ReferenceReviewRead)
-def reference_review_action_endpoint(body: ReferenceReviewActionRequest):
-    try:
-        return apply_review_action(body.directory, body.relative_path, body.action)
-    except ServiceError as exc:
-        _raise_service_error(exc)
-
-
-@router.post("/reference-review/undo", response_model=ReferenceReviewRead)
-def reference_review_undo_endpoint(body: ReferenceReviewUndoRequest):
-    try:
-        return undo_review_action(body.directory)
-    except ServiceError as exc:
-        _raise_service_error(exc)

@@ -88,33 +88,3 @@ export type ExportResponse = {
   zip_url: string;
 };
 
-export type ReferenceReviewImageRead = {
-  file_name: string;
-  relative_path: string;
-};
-
-export type ReferenceReviewRead = {
-  directory: string;
-  current: ReferenceReviewImageRead | null;
-  next: ReferenceReviewImageRead | null;
-  pending_count: number;
-  keep_count: number;
-  discard_count: number;
-  reviewed_count: number;
-  total_count: number;
-  history_count: number;
-  keep_hotkey: string;
-  discard_hotkey: string;
-  undo_hotkey: string;
-  preview_max_edge: number;
-};
-
-export type ReferenceReviewActionRequest = {
-  directory: string;
-  relative_path: string;
-  action: "keep" | "discard";
-};
-
-export type ReferenceReviewUndoRequest = {
-  directory: string;
-};

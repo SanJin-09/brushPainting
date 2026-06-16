@@ -6,12 +6,9 @@ import type {
   JobRead,
   VersionsResponse,
   ExportResponse,
-  ReferenceReviewRead,
   RegenerateRequest,
   SemanticEditRequest,
   ExportRequest,
-  ReferenceReviewActionRequest,
-  ReferenceReviewUndoRequest,
 } from "./types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api").replace(/\/+$/, "");
@@ -66,28 +63,3 @@ export async function exportBatch(batchId: string, body?: ExportRequest) {
   return data;
 }
 
-// ===== 参考图审核接口 =====
-
-export async function getReferenceReview(directory: string) {
-  const { data } = await api.get<ReferenceReviewRead>("/reference-review", { params: { directory } });
-  return data;
-}
-
-export async function applyReferenceReviewAction(payload: ReferenceReviewActionRequest) {
-  const { data } = await api.post<ReferenceReviewRead>("/reference-review/action", payload);
-  return data;
-}
-
-export async function undoReferenceReview(directory: string) {
-  const body: ReferenceReviewUndoRequest = { directory };
-  const { data } = await api.post<ReferenceReviewRead>("/reference-review/undo", body);
-  return data;
-}
-
-export function getReferenceReviewImageUrl(directory: string, relativePath: string, maxEdge?: number) {
-  const params = new URLSearchParams({ directory, relative_path: relativePath });
-  if (maxEdge) {
-    params.set("max_edge", String(maxEdge));
-  }
-  return `${API_BASE}/reference-review/image?${params.toString()}`;
-}
