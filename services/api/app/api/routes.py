@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from services.api.app.db.database import get_db
-from services.api.app.models.entities import Batch, ImageAsset, Job, Version
+from services.api.app.models.entities import Batch, ImageAsset, Job, SegmentationResult, Version
 from services.api.app.models.enums import ImageStatus, JobStatus, JobType
 from services.api.app.schemas.workflow import (
     BatchRead,
@@ -14,6 +16,9 @@ from services.api.app.schemas.workflow import (
     JobRead,
     JobsResponse,
     RegenerateRequest,
+    SegmentRead,
+    SegmentRequest,
+    SegmentsResponse,
     SemanticEditRequest,
     UploadResponse,
     VersionRead,
@@ -120,7 +125,7 @@ def _batch_read(batch: Batch) -> BatchRead:
 
 def _dispatch_or_fail(db: Session, job: Job, image: ImageAsset) -> None:
     try:
-        dispatch_job(job.id)
+        dispatch_job(job.id, job.type)
     except ServiceError:
         job.status = JobStatus.FAILED.value
         job.error = "任务提交失败"
@@ -242,4 +247,76 @@ def export_batch(batch_id: str, body: ExportRequest = ExportRequest(), db: Sessi
         return ExportResponse(batch_id=batch.id, zip_url=zip_url)
     except ServiceError as exc:
         _raise_service_error(exc)
+
+
+def _segment_read(seg: SegmentationResult) -> SegmentRead:
+    return SegmentRead(
+        id=seg.id,
+        source_image_id=seg.source_image_id,
+        user_prompt=seg.user_prompt,
+        region_index=seg.region_index,
+        confidence=seg.confidence,
+        mask_url=seg.mask_url,
+        crop_url=seg.crop_url,
+        bbox_x=seg.bbox_x,
+        bbox_y=seg.bbox_y,
+        bbox_w=seg.bbox_w,
+        bbox_h=seg.bbox_h,
+        area_ratio=seg.area_ratio,
+        created_at=seg.created_at,
+    )
+
+
+@router.post("/images/{image_id}/segment", response_model=JobRead)
+def segment_image_endpoint(image_id: str, body: SegmentRequest, db: Session = Depends(get_db)):
+    try:
+        image = get_image(db, image_id)
+        ensure_no_active_job(image)
+        job = create_job(
+            db,
+            job_type=JobType.SAM_SEGMENT.value,
+            image=image,
+            payload={"user_prompt": body.user_prompt.strip()},
+        )
+        _dispatch_or_fail(db, job, image)
+        return _job_read(job)
+    except ServiceError as exc:
+        _raise_service_error(exc)
+
+
+@router.get("/images/{image_id}/segments", response_model=SegmentsResponse)
+def read_segments(image_id: str, db: Session = Depends(get_db)):
+    try:
+        image = get_image(db, image_id)
+        segments = db.execute(
+            select(SegmentationResult)
+            .where(SegmentationResult.source_image_id == image_id)
+            .order_by(SegmentationResult.user_prompt, SegmentationResult.region_index)
+        ).scalars().all()
+        return SegmentsResponse(
+            source_image_id=image_id,
+            user_prompt=segments[0].user_prompt if segments else "",
+            segments=[_segment_read(s) for s in segments],
+        )
+    except ServiceError as exc:
+        _raise_service_error(exc)
+
+
+@router.get("/segments/{segment_id}", response_model=SegmentRead)
+def read_segment(segment_id: str, db: Session = Depends(get_db)):
+    seg = db.get(SegmentationResult, segment_id)
+    if not seg:
+        raise HTTPException(status_code=404, detail=f"子图 {segment_id} 不存在")
+    return _segment_read(seg)
+
+
+@router.get("/segments/{segment_id}/image")
+def read_segment_image(segment_id: str, db: Session = Depends(get_db)):
+    seg = db.get(SegmentationResult, segment_id)
+    if not seg:
+        raise HTTPException(status_code=404, detail=f"子图 {segment_id} 不存在")
+    try:
+        return FileResponse(storage.url_to_path(seg.crop_url))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="子图文件不存在")
 

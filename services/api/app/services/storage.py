@@ -65,6 +65,12 @@ class LocalStorage:
         image.convert("RGB").save(path, format="PNG")
         return self.path_to_url(path)
 
+    def save_segment(self, image_id: str, segment_id: str, image: Image.Image) -> str:
+        path = self.root / "outputs" / image_id / "segments" / f"{segment_id}.png"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        image.convert("RGB").save(path, format="PNG")
+        return self.path_to_url(path)
+
     def create_export(self, batch_id: str, items: list[tuple[str, str, str]]) -> str:
         path = self.root / "exports" / f"{batch_id}-{uuid.uuid4().hex[:8]}.zip"
         path.parent.mkdir(parents=True, exist_ok=True)
