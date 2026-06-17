@@ -17,7 +17,7 @@ def _image_bytes(color: str = "#cfa671", size: tuple[int, int] = (96, 72), forma
     return buffer.getvalue()
 
 
-def _sync_dispatch(job_id: str) -> None:
+def _sync_dispatch(job_id: str, _job_type: str) -> None:
     run_generation(job_id)
 
 
@@ -97,7 +97,7 @@ def test_generate_is_idempotent(monkeypatch):
 
 
 def test_same_image_rejects_second_active_job(monkeypatch):
-    monkeypatch.setattr(routes, "dispatch_job", lambda _job_id: None)
+    monkeypatch.setattr(routes, "dispatch_job", lambda _job_id, _job_type: None)
     client = TestClient(app)
     image_id = _upload(client)["images"][0]["id"]
 
