@@ -36,7 +36,9 @@ class Settings(BaseSettings):
     gongbi_lora_scale: float = Field(default=1.0, alias="GONGBI_LORA_SCALE")
     qwen_image_steps: int = Field(default=40, alias="QWEN_IMAGE_STEPS")
 
-    # SAM 3 
+    # SAM 3
+    sam3_backend: str = Field(default="mock", alias="SAM3_BACKEND")
+    sam3_preload: bool = Field(default=False, alias="SAM3_PRELOAD")
     sam3_checkpoint_path: str = Field(default="/models/sam3/sam3.pt", alias="SAM3_CHECKPOINT_PATH")
     sam3_device: str = Field(default="cuda", alias="SAM3_DEVICE")
     sam3_score_threshold: float = Field(default=0.30, alias="SAM3_SCORE_THRESHOLD")

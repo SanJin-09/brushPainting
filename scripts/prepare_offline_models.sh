@@ -2,7 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="${1:-runtime/models}"
-mkdir -p "$ROOT_DIR/lora"
+SAM3_REVISION="${SAM3_REVISION:-main}"
+mkdir -p "$ROOT_DIR/lora" "$ROOT_DIR/sam3"
 
 command -v hf >/dev/null 2>&1 || {
   echo "缺少 hf CLI，请先安装：https://huggingface.co/docs/huggingface_hub/guides/cli"
@@ -29,5 +30,11 @@ hf download SanJin09/qwen-image-edit-gongbi-lora-v1 \
   --revision 327edcab37396b1b60bd4c8da2be1d7efc91527a \
   --include qwen_image_edit_2511_gongbi_lora_v1.safetensors \
   --local-dir "$ROOT_DIR/lora"
+
+echo "准备下载 gated 模型 facebook/sam3。请先在模型页接受许可并执行 hf auth login。"
+hf download facebook/sam3 \
+  --revision "$SAM3_REVISION" \
+  --include sam3.pt \
+  --local-dir "$ROOT_DIR/sam3"
 
 echo "模型已准备到 $ROOT_DIR"

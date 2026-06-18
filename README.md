@@ -6,6 +6,7 @@
 
 <p>
   支持多图上传、批量初始生成、重生成、自然语言语义编辑、历史版本管理与 ZIP 导出。
+  支持通过 SAM 3 文本提示词分割目标，并输出全尺寸 Mask 与透明背景子图。
 </p>
 
 <p>
@@ -29,6 +30,7 @@
 * 批量初始工笔画生成
 * 单图重生成
 * 基于自然语言的语义编辑
+* SAM 3 开放词汇文本分割
 * 历史版本查询
 * ZIP 结果导出
 * Mock 推理环境下的本地开发与接口验证
@@ -58,6 +60,7 @@
 | 队列   | Redis + RQ                                        | 通过单个 `SimpleWorker` 串行使用 GPU                                              |
 | 开发推理 | `MODEL_BACKEND=mock`                              | 本地开发默认模式，不需要 GPU 和模型                                                      |
 | 生产推理 | DiffSynth-Studio + Qwen-Image-Edit-2511 + 工笔 LoRA | 面向正式 GPU 推理环境                                                             |
+| 图像分割 | SAM 3                                             | 根据简短文本提示词分割所有匹配实例，保存 Mask、透明子图和 bbox                                 |
 | 存储   | 本地文件系统                                            | 使用 `runtime/uploads`、`runtime/outputs`、`runtime/thumbs`、`runtime/exports` |
 
 ### 后端流程
@@ -70,18 +73,24 @@ flowchart LR
     B --> D[Redis Queue]
 
     D --> E[RQ SimpleWorker]
-    E --> F{MODEL_BACKEND}
+    E --> F{任务类型}
 
-    F -->|mock| G[Mock Backend]
-    F -->|diffsynth_qwen| H[DiffSynth-Studio<br/>Qwen-Image-Edit-2511<br/>Gongbi LoRA]
+    F -->|生成/编辑| G{MODEL_BACKEND}
+    F -->|文本分割| H{SAM3_BACKEND}
 
-    G --> I[Generated Outputs]
-    H --> I
+    G -->|mock| I[Mock Generator]
+    G -->|diffsynth_qwen| J[Qwen Image Edit<br/>Gongbi LoRA]
+    H -->|mock| K[Mock Segmenter]
+    H -->|sam3| L[SAM 3]
 
-    I --> J[runtime/outputs]
-    I --> K[runtime/thumbs]
-    B --> L[runtime/uploads]
-    B --> M[runtime/exports]
+    I --> M[Generated Outputs]
+    J --> M
+    K --> M
+    L --> M
+
+    M --> N[runtime/outputs]
+    B --> O[runtime/uploads]
+    B --> P[runtime/exports]
 ```
 
 ### 任务执行模型
@@ -120,7 +129,7 @@ sequenceDiagram
 | ------------------- | ---------------- |
 | `runtime/db.sqlite` | SQLite 数据库       |
 | `runtime/uploads`   | 用户上传的原始图片        |
-| `runtime/outputs`   | 生成、重生成、语义编辑后的结果图 |
+| `runtime/outputs`   | 生成结果，以及 SAM 3 Mask 和透明子图 |
 | `runtime/thumbs`    | 缩略图              |
 | `runtime/exports`   | ZIP 导出文件         |
 | `runtime/models`    | 离线部署时使用的模型文件目录   |
@@ -162,6 +171,10 @@ make worker
 | `GET`  | `/api/jobs/{job_id}`                | 查询任务状态           |
 | `GET`  | `/api/images/{image_id}/versions`   | 查询图片历史版本         |
 | `POST` | `/api/batches/{batch_id}/export`    | 导出批次结果 ZIP       |
+| `POST` | `/api/images/{image_id}/segment`    | 按文本提示词提交 SAM 3 分割任务 |
+| `GET`  | `/api/images/{image_id}/segments`   | 查询最新或指定提示词的分割结果 |
+| `GET`  | `/api/segments/{segment_id}/image`  | 获取透明背景子图 |
+| `GET`  | `/api/segments/{segment_id}/mask`   | 获取全尺寸灰度 Mask |
 | `GET`  | `/media/{path}`                     | 访问上传、输出、缩略图或导出文件 |
 
 
@@ -193,6 +206,9 @@ make worker
 bash scripts/prepare_offline_models.sh runtime/models
 ```
 
+`facebook/sam3` 是 gated 模型。下载前需在 Hugging Face 模型页接受许可，并执行 `hf auth login`。可通过
+`SAM3_REVISION` 固定要下载的模型 revision。
+
 然后将 `runtime/models` 随部署包复制到正式服务器。
 
 ### 2. 配置生产推理环境变量
@@ -206,7 +222,18 @@ QWEN_IMAGE_COMPONENTS_PATH=/models/qwen_image
 QWEN_EDIT_PROCESSOR_PATH=/models/qwen_image_edit/processor
 GONGBI_LORA_PATH=/models/lora/qwen_image_edit_2511_gongbi_lora_v1.safetensors
 GONGBI_LORA_SCALE=1.0
+SAM3_BACKEND=sam3
+SAM3_PRELOAD=false
+SAM3_CHECKPOINT_PATH=/models/sam3/sam3.pt
+SAM3_DEVICE=cuda
 ```
+
+`MODEL_BACKEND` 与 `SAM3_BACKEND` 相互独立。默认不在 Worker 启动时预加载 SAM 3，因此 SAM 权重缺失或配置错误
+不会阻塞 Qwen 生成任务；首次分割任务会按需加载模型。显存足够且希望提前发现配置错误时，可设置
+`SAM3_PRELOAD=true`。
+
+GPU Worker 镜像使用 Python 3.12、PyTorch 2.7 和 CUDA 12.6 wheels，以满足仓库内置 SAM 3 源码的运行要求。
+生成与分割共用单 GPU Worker，切换任务类型时会释放另一套模型缓存，避免 Qwen 与 SAM 3 长期同时占用显存。
 
 ### 3. 使用 GPU Compose 启动
 
@@ -249,12 +276,19 @@ pytest -q
 ./scripts/e2e_mock.sh
 ```
 
+GPU 环境可使用真实图片验证 SAM 3：
+
+```bash
+scripts/verify_sam3.sh /path/to/test-image.png
+```
+
 ### GPU 环境额外验证项
 
 GPU 环境需额外验证以下内容：
 
 * LoRA 整图生成效果
 * 自然语言语义编辑效果
+* SAM 3 文本分割、Mask 尺寸与透明子图效果
 * 多图任务串行排队效果
 * Worker 启动后模型与 LoRA 是否正确常驻 GPU
 * 批次导出 ZIP 是否包含预期输出文件
@@ -268,6 +302,7 @@ GPU 环境需额外验证以下内容：
 * 批量初始生成
 * 单图重生成
 * 自然语言语义编辑
+* SAM 3 文本分割
 * 历史版本记录
 * ZIP 导出
 * Mock 开发推理
@@ -276,7 +311,7 @@ GPU 环境需额外验证以下内容：
 
 ## 前端对接说明
 
-`apps/web` 当前仍是旧 Session / Mask 前端。后续前端交付时，应改接以下 API 族：
+`apps/web` 已接入批次、版本、语义编辑和 SAM 3 分割接口：
 
 | API 族       | 主要用途                |
 | ----------- | ------------------- |
@@ -285,13 +320,14 @@ GPU 环境需额外验证以下内容：
 | Version API | 图片历史版本查询            |
 | Job API     | 异步任务状态查询            |
 | Media API   | 上传图、输出图、缩略图、导出文件访问  |
+| Segment API | 文本分割、Mask 与透明子图查询 |
 
 建议前端围绕以下核心页面重构：
 
 * 批次上传页
 * 批次生成进度页
 * 图片版本查看页
-* 单图重生成 / 语义编辑页
+* 单图重生成 / 语义编辑 / SAM 3 分割页
 * 批次 ZIP 导出页
 
 
@@ -306,6 +342,5 @@ GPU 环境需额外验证以下内容：
 | 本地运行时存储          | 已支持           |
 | ZIP 导出           | 已支持           |
 | GPU 生产推理         | 需在正式 GPU 环境验证 |
-| `apps/web` 新接口适配 | 待后续前端交付       |
-
-
+| SAM 3 GPU 推理       | 调用链已接通，需使用正式权重做质量与显存验证 |
+| `apps/web` 新接口适配 | 已支持主流程与分割结果展示 |

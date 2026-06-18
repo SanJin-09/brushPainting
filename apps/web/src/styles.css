@@ -302,6 +302,73 @@ button:disabled {
   width: 100%;
 }
 
+.segment-control {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(176, 135, 79, 0.2);
+}
+
+.segment-control h3,
+.segment-control p {
+  margin: 0;
+}
+
+.segment-control p {
+  color: #6b5538;
+  font-size: 13px;
+}
+
+.segment-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px;
+}
+
+.segment-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(176, 135, 79, 0.32);
+  background: rgba(255, 251, 243, 0.94);
+}
+
+.segment-preview {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  padding: 10px;
+  border-radius: 10px;
+  background-color: #f4eadb;
+  background-image:
+    linear-gradient(45deg, rgba(122, 94, 57, 0.08) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(122, 94, 57, 0.08) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(122, 94, 57, 0.08) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(122, 94, 57, 0.08) 75%);
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-size: 16px 16px;
+}
+
+.segment-preview img {
+  max-width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+}
+
+.segment-meta,
+.segment-links {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+  color: #5a4a32;
+}
+
+.segment-links {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .job-status {
   display: grid;
   gap: 6px;
@@ -738,8 +805,13 @@ button:disabled {
   }
 
   .semantic-edit select,
-  .semantic-edit input {
+  .semantic-edit input,
+  .segment-control input {
     width: 100%;
+  }
+
+  .segment-grid {
+    grid-template-columns: 1fr;
   }
 
   .job-item {

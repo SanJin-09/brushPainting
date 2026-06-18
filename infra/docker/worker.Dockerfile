@@ -1,4 +1,5 @@
-FROM python:3.11-slim
+ARG PYTHON_BASE_IMAGE=docker.m.daocloud.io/library/python:3.12-slim
+FROM ${PYTHON_BASE_IMAGE}
 
 ARG http_proxy
 ARG https_proxy
@@ -32,8 +33,11 @@ COPY services/worker/requirements.txt /tmp/requirements-worker.txt
 COPY services/model_runtime/requirements.txt /tmp/requirements-runtime.txt
 
 RUN pip install --no-cache-dir --retries 30 --timeout 1200 \
+    --index-url https://download.pytorch.org/whl/cu126 --trusted-host download.pytorch.org \
+    torch==2.7.0 torchvision==0.22.0
+
+RUN pip install --no-cache-dir --retries 30 --timeout 1200 \
     -i https://mirrors.aliyun.com/pypi/simple --trusted-host mirrors.aliyun.com \
-    --extra-index-url https://download.pytorch.org/whl/cu124 --trusted-host download.pytorch.org \
     -r /tmp/requirements-api.txt -r /tmp/requirements-worker.txt -r /tmp/requirements-runtime.txt
 
 COPY . /app

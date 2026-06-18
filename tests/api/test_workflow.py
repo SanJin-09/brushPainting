@@ -7,7 +7,8 @@ from PIL import Image
 import services.api.app.api.routes as routes
 from services.api.app.main import app
 from services.api.app.services.storage import LocalStorage
-from services.worker.tasks import run_generation
+from services.api.app.models.enums import JobType
+from services.worker.tasks import run_generation, run_segmentation
 
 
 def _image_bytes(color: str = "#cfa671", size: tuple[int, int] = (96, 72), format: str = "PNG") -> bytes:
@@ -17,8 +18,11 @@ def _image_bytes(color: str = "#cfa671", size: tuple[int, int] = (96, 72), forma
     return buffer.getvalue()
 
 
-def _sync_dispatch(job_id: str, _job_type: str) -> None:
-    run_generation(job_id)
+def _sync_dispatch(job_id: str, job_type: str) -> None:
+    if job_type == JobType.SAM_SEGMENT.value:
+        run_segmentation(job_id)
+    else:
+        run_generation(job_id)
 
 
 def _upload(client: TestClient, count: int = 1) -> dict:
@@ -152,3 +156,67 @@ def test_media_route_does_not_expose_database_or_traversal():
 
     assert client.get("/media/test.db").status_code == 404
     assert client.get("/media/../README.md").status_code == 404
+
+
+def test_segment_flow_saves_masks_and_replaces_same_prompt(monkeypatch):
+    monkeypatch.setattr(routes, "dispatch_job", _sync_dispatch)
+    client = TestClient(app)
+    image_id = _upload(client)["images"][0]["id"]
+
+    response = client.post(
+        f"/api/images/{image_id}/segment",
+        json={"user_prompt": "flower"},
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "succeeded"
+
+    first = client.get(
+        f"/api/images/{image_id}/segments",
+        params={"user_prompt": "flower"},
+    ).json()
+    assert first["user_prompt"] == "flower"
+    assert len(first["segments"]) == 3
+    assert all(segment["mask_url"] for segment in first["segments"])
+
+    storage = LocalStorage()
+    first_ids = {segment["id"] for segment in first["segments"]}
+    first_paths = {
+        storage.url_to_path(url)
+        for segment in first["segments"]
+        for url in (segment["mask_url"], segment["crop_url"])
+    }
+    first_segment = first["segments"][0]
+    with Image.open(storage.url_to_path(first_segment["crop_url"])) as crop:
+        assert crop.mode == "RGBA"
+    with Image.open(storage.url_to_path(first_segment["mask_url"])) as mask:
+        assert mask.mode == "L"
+    assert client.get(f"/api/segments/{first_segment['id']}/image").status_code == 200
+    assert client.get(f"/api/segments/{first_segment['id']}/mask").status_code == 200
+
+    response = client.post(
+        f"/api/images/{image_id}/segment",
+        json={"user_prompt": "flower"},
+    )
+    assert response.status_code == 200
+    second = client.get(
+        f"/api/images/{image_id}/segments",
+        params={"user_prompt": "flower"},
+    ).json()
+    assert len(second["segments"]) == 3
+    assert not first_ids.intersection({segment["id"] for segment in second["segments"]})
+    assert all(not path.exists() for path in first_paths)
+
+    response = client.post(
+        f"/api/images/{image_id}/segment",
+        json={"user_prompt": "bird"},
+    )
+    assert response.status_code == 200
+    latest = client.get(f"/api/images/{image_id}/segments").json()
+    assert latest["user_prompt"] == "bird"
+    assert len(latest["segments"]) == 3
+
+    retained = client.get(
+        f"/api/images/{image_id}/segments",
+        params={"user_prompt": "flower"},
+    ).json()
+    assert len(retained["segments"]) == 3

@@ -1,4 +1,4 @@
-from services.api.app.models.entities import Base, Batch, ImageAsset, Job, Version
+from services.api.app.models.entities import Base, Batch, ImageAsset, Job, SegmentationResult, Version
 from services.api.app.models.enums import ImageStatus, JobStatus, JobType, VersionKind
 
 __all__ = [
@@ -7,6 +7,7 @@ __all__ = [
     "ImageAsset",
     "Version",
     "Job",
+    "SegmentationResult",
     "ImageStatus",
     "VersionKind",
     "JobType",

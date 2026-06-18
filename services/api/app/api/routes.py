@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -101,7 +101,10 @@ def _image_read(image: ImageAsset) -> ImageRead:
 
 
 def _batch_status(batch: Batch) -> str:
-    statuses = {image.status for image in batch.images}
+    statuses = {
+        ImageStatus.SUCCEEDED.value if image.status == "segmented" else image.status
+        for image in batch.images
+    }
     if ImageStatus.RUNNING.value in statuses:
         return ImageStatus.RUNNING.value
     if ImageStatus.QUEUED.value in statuses:
@@ -126,6 +129,8 @@ def _batch_read(batch: Batch) -> BatchRead:
 def _dispatch_or_fail(db: Session, job: Job, image: ImageAsset) -> None:
     try:
         dispatch_job(job.id, job.type)
+        db.refresh(job)
+        db.refresh(image)
     except ServiceError:
         job.status = JobStatus.FAILED.value
         job.error = "任务提交失败"
@@ -285,17 +290,35 @@ def segment_image_endpoint(image_id: str, body: SegmentRequest, db: Session = De
 
 
 @router.get("/images/{image_id}/segments", response_model=SegmentsResponse)
-def read_segments(image_id: str, db: Session = Depends(get_db)):
+def read_segments(
+    image_id: str,
+    user_prompt: str | None = Query(default=None, min_length=1, max_length=200),
+    db: Session = Depends(get_db),
+):
     try:
-        image = get_image(db, image_id)
+        get_image(db, image_id)
+        selected_prompt = user_prompt.strip() if user_prompt else None
+        if selected_prompt is None:
+            selected_prompt = db.execute(
+                select(SegmentationResult.user_prompt)
+                .where(SegmentationResult.source_image_id == image_id)
+                .order_by(SegmentationResult.created_at.desc())
+                .limit(1)
+            ).scalar_one_or_none()
+        if selected_prompt is None:
+            return SegmentsResponse(source_image_id=image_id, user_prompt="", segments=[])
+
         segments = db.execute(
             select(SegmentationResult)
-            .where(SegmentationResult.source_image_id == image_id)
-            .order_by(SegmentationResult.user_prompt, SegmentationResult.region_index)
+            .where(
+                SegmentationResult.source_image_id == image_id,
+                SegmentationResult.user_prompt == selected_prompt,
+            )
+            .order_by(SegmentationResult.region_index)
         ).scalars().all()
         return SegmentsResponse(
             source_image_id=image_id,
-            user_prompt=segments[0].user_prompt if segments else "",
+            user_prompt=selected_prompt,
             segments=[_segment_read(s) for s in segments],
         )
     except ServiceError as exc:
@@ -320,3 +343,13 @@ def read_segment_image(segment_id: str, db: Session = Depends(get_db)):
     except ValueError:
         raise HTTPException(status_code=404, detail="子图文件不存在")
 
+
+@router.get("/segments/{segment_id}/mask")
+def read_segment_mask(segment_id: str, db: Session = Depends(get_db)):
+    seg = db.get(SegmentationResult, segment_id)
+    if not seg or not seg.mask_url:
+        raise HTTPException(status_code=404, detail=f"Mask {segment_id} 不存在")
+    try:
+        return FileResponse(storage.url_to_path(seg.mask_url))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Mask 文件不存在")

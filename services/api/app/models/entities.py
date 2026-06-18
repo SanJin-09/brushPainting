@@ -59,6 +59,10 @@ class ImageAsset(Base):
     )
     active_version: Mapped[Optional["Version"]] = relationship(foreign_keys=[active_version_id], post_update=True)
     jobs: Mapped[list["Job"]] = relationship(back_populates="image")
+    segments: Mapped[list["SegmentationResult"]] = relationship(
+        back_populates="source_image",
+        cascade="all, delete-orphan",
+    )
 
 
 class Version(Base):
@@ -107,8 +111,12 @@ class Job(Base):
     image: Mapped[Optional[ImageAsset]] = relationship(back_populates="jobs")
     result_version: Mapped[Optional[Version]] = relationship(foreign_keys=[result_version_id])
 
+
 class SegmentationResult(Base):
     __tablename__ = "segments"
+    __table_args__ = (
+        Index("ix_segments_image_prompt", "source_image_id", "user_prompt"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     source_image_id: Mapped[str] = mapped_column(ForeignKey("images.id", ondelete="CASCADE"), index=True)
@@ -123,3 +131,5 @@ class SegmentationResult(Base):
     bbox_h: Mapped[int] = mapped_column(Integer, nullable=False)
     area_ratio: Mapped[float] = mapped_column(Float, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    source_image: Mapped[ImageAsset] = relationship(back_populates="segments")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import hashlib
 import os
 from functools import lru_cache
@@ -115,6 +116,18 @@ def preload_runtime() -> None:
         _diffsynth_runtime()
     elif backend != "mock":
         raise RuntimeError(f"不支持的 MODEL_BACKEND: {backend}")
+
+
+def release_runtime() -> None:
+    _diffsynth_runtime.cache_clear()
+    gc.collect()
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except ImportError:
+        pass
 
 
 def generate_image(source: Image.Image, *, seed: int, user_prompt: str | None = None) -> tuple[Image.Image, dict[str, object]]:

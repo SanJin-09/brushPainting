@@ -29,6 +29,13 @@ services:
       GONGBI_LORA_PATH: /models/lora/qwen_image_edit_2511_gongbi_lora_v1.safetensors
       GONGBI_LORA_SCALE: "1.0"
       QWEN_IMAGE_STEPS: "40"
+      SAM3_BACKEND: mock
+      SAM3_PRELOAD: "false"
+      SAM3_CHECKPOINT_PATH: /models/sam3/sam3.pt
+      SAM3_DEVICE: cuda
+      SAM3_SCORE_THRESHOLD: "0.30"
+      SEGMENT_MAX_RESULTS: "12"
+      SEGMENT_MIN_AREA_RATIO: "0.015"
     restart: unless-stopped
     depends_on:
       - redis
