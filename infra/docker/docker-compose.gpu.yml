@@ -2,6 +2,8 @@ services:
   worker:
     environment:
       MODEL_BACKEND: diffsynth_qwen
+      SAM3_BACKEND: sam3
+      SAM3_PRELOAD: "false"
     deploy:
       resources:
         reservations:

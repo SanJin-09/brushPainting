@@ -9,6 +9,8 @@ import type {
   RegenerateRequest,
   SemanticEditRequest,
   ExportRequest,
+  SegmentRequest,
+  SegmentsResponse,
 } from "./types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api").replace(/\/+$/, "");
@@ -63,3 +65,14 @@ export async function exportBatch(batchId: string, body?: ExportRequest) {
   return data;
 }
 
+export async function segmentImage(imageId: string, body: SegmentRequest) {
+  const { data } = await api.post<JobRead>(`/images/${imageId}/segment`, body);
+  return data;
+}
+
+export async function getImageSegments(imageId: string, userPrompt?: string) {
+  const { data } = await api.get<SegmentsResponse>(`/images/${imageId}/segments`, {
+    params: userPrompt ? { user_prompt: userPrompt } : undefined,
+  });
+  return data;
+}

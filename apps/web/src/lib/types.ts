@@ -1,6 +1,6 @@
 export type ImageStatus = "uploaded" | "queued" | "running" | "succeeded" | "failed";
 export type VersionKind = "initial" | "regenerate" | "semantic_edit";
-export type JobType = "initial" | "regenerate" | "semantic_edit";
+export type JobType = "initial" | "regenerate" | "semantic_edit" | "sam_segment";
 export type JobStatus = "queued" | "running" | "succeeded" | "failed";
 
 export type VersionRead = {
@@ -88,3 +88,28 @@ export type ExportResponse = {
   zip_url: string;
 };
 
+export type SegmentRequest = {
+  user_prompt: string;
+};
+
+export type SegmentRead = {
+  id: string;
+  source_image_id: string;
+  user_prompt: string;
+  region_index: number;
+  confidence: number;
+  mask_url: string | null;
+  crop_url: string;
+  bbox_x: number;
+  bbox_y: number;
+  bbox_w: number;
+  bbox_h: number;
+  area_ratio: number;
+  created_at: string;
+};
+
+export type SegmentsResponse = {
+  source_image_id: string;
+  user_prompt: string;
+  segments: SegmentRead[];
+};

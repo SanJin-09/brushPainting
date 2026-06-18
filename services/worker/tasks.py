@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import datetime, timezone
 
 from PIL import Image
+from sqlalchemy import select
 
-from model_runtime.generator import generate_image
+from model_runtime.generator import generate_image, release_runtime as release_generator_runtime
+from model_runtime.sam_engine import release_runtime as release_sam_runtime
 from model_runtime.sam_engine import segment_image
 from services.api.app.db.database import SessionLocal
 from services.api.app.models.entities import ImageAsset, Job, SegmentationResult, Version
@@ -23,6 +26,12 @@ def _progress(db, job: Job, percent: int, message: str) -> None:
     job.progress = max(0, min(100, percent))
     job.progress_message = message
     db.commit()
+
+
+def _restored_image_status(image: ImageAsset) -> str:
+    if image.active_version_id:
+        return ImageStatus.SUCCEEDED.value
+    return ImageStatus.UPLOADED.value
 
 
 def run_generation(job_id: str) -> None:
@@ -60,6 +69,8 @@ def run_generation(job_id: str) -> None:
                 kind = VersionKind.INITIAL.value
 
             _progress(db, job, 25, "正在读取输入图片")
+            if os.getenv("MODEL_BACKEND", "mock").strip().lower() == "diffsynth_qwen":
+                release_sam_runtime()
             with Image.open(storage.url_to_path(source_url)) as source:
                 _progress(db, job, 35, "正在生成工笔图片")
                 output, params = generate_image(source.convert("RGB"), seed=seed, user_prompt=user_prompt)
@@ -114,6 +125,8 @@ def run_segmentation(job_id: str) -> None:
             job.started_at = _now()
             image.status = ImageStatus.RUNNING.value
             _progress(db, job, 10, "正在加载 SAM 3 模型")
+            if os.getenv("SAM3_BACKEND", "mock").strip().lower() == "sam3":
+                release_generator_runtime()
 
             with Image.open(storage.url_to_path(image.original_url)) as source:
                 _progress(db, job, 20, f"正在按提示词「{user_prompt}」分割目标...")
@@ -124,37 +137,60 @@ def run_segmentation(job_id: str) -> None:
                 job.error = f"未检测到与「{user_prompt}」匹配的目标"
                 job.progress_message = "分割失败：无匹配目标"
                 job.finished_at = _now()
-                image.status = ImageStatus.FAILED.value
+                image.status = _restored_image_status(image)
                 db.commit()
                 return
 
             _progress(db, job, 70, f"检测到 {len(segments)} 个目标，正在保存...")
+            previous_segments = db.execute(
+                select(SegmentationResult).where(
+                    SegmentationResult.source_image_id == image.id,
+                    SegmentationResult.user_prompt == user_prompt,
+                )
+            ).scalars().all()
+            previous_urls = [
+                url
+                for previous in previous_segments
+                for url in (previous.mask_url, previous.crop_url)
+                if url
+            ]
+            for previous in previous_segments:
+                db.delete(previous)
+
             for i, seg in enumerate(segments):
                 seg_id = str(uuid.uuid4())
-                crop_url = storage.save_segment(image.id, seg_id, seg.crop)
+                mask_url, crop_url = storage.save_segment(
+                    image.id,
+                    seg_id,
+                    mask=seg.mask,
+                    crop=seg.crop,
+                )
                 db.add(SegmentationResult(
                     id=seg_id,
                     source_image_id=image.id,
                     user_prompt=user_prompt,
                     region_index=i,
                     confidence=seg.confidence,
+                    mask_url=mask_url,
                     crop_url=crop_url,
                     bbox_x=seg.bbox[0], bbox_y=seg.bbox[1],
                     bbox_w=seg.bbox[2], bbox_h=seg.bbox[3],
                     area_ratio=seg.area_ratio,
                 ))
 
-            image.status = ImageStatus.SEGMENTED.value
+            image.status = _restored_image_status(image)
             job.status = JobStatus.SUCCEEDED.value
             job.progress = 100
             job.progress_message = f"按「{user_prompt}」分割完成，共 {len(segments)} 个子图"
             job.finished_at = _now()
             db.commit()
+            for url in previous_urls:
+                storage.remove_media(url)
         except Exception as exc:
             job.status = JobStatus.FAILED.value
             job.error = str(exc)
             job.progress_message = "分割失败"
             job.finished_at = _now()
-            image.status = ImageStatus.FAILED.value
+            image.status = _restored_image_status(image)
             db.commit()
             raise

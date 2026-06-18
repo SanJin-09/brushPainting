@@ -65,11 +65,30 @@ class LocalStorage:
         image.convert("RGB").save(path, format="PNG")
         return self.path_to_url(path)
 
-    def save_segment(self, image_id: str, segment_id: str, image: Image.Image) -> str:
-        path = self.root / "outputs" / image_id / "segments" / f"{segment_id}.png"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        image.convert("RGB").save(path, format="PNG")
-        return self.path_to_url(path)
+    def save_segment(
+        self,
+        image_id: str,
+        segment_id: str,
+        *,
+        mask: Image.Image,
+        crop: Image.Image,
+    ) -> tuple[str, str]:
+        directory = self.root / "outputs" / image_id / "segments"
+        mask_path = directory / f"{segment_id}-mask.png"
+        crop_path = directory / f"{segment_id}.png"
+        directory.mkdir(parents=True, exist_ok=True)
+        mask.convert("L").save(mask_path, format="PNG")
+        crop.convert("RGBA").save(crop_path, format="PNG")
+        return self.path_to_url(mask_path), self.path_to_url(crop_path)
+
+    def remove_media(self, url: str | None) -> None:
+        if not url:
+            return
+        try:
+            path = self.url_to_path(url)
+        except ValueError:
+            return
+        path.unlink(missing_ok=True)
 
     def create_export(self, batch_id: str, items: list[tuple[str, str, str]]) -> str:
         path = self.root / "exports" / f"{batch_id}-{uuid.uuid4().hex[:8]}.zip"

@@ -109,6 +109,7 @@ class SegmentRequest(BaseModel):
             raise ValueError("user_prompt 不能为空")
         return prompt
 
+
 class SegmentRead(BaseModel):
     id: str
     source_image_id: str
@@ -123,6 +124,7 @@ class SegmentRead(BaseModel):
     bbox_h: int
     area_ratio: float
     created_at: datetime
+
 
 class SegmentsResponse(BaseModel):
     source_image_id: str

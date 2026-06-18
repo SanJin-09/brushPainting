@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getImageVersions, regenerateImage, semanticEdit, getJob, getBatch } from "../lib/api";
+import {
+  getBatch,
+  getImageSegments,
+  getImageVersions,
+  getJob,
+  regenerateImage,
+  segmentImage,
+  semanticEdit,
+} from "../lib/api";
 import { useAppStore } from "../store";
-import type { JobRead, VersionsResponse } from "../lib/types";
+import type { JobRead, SegmentsResponse, VersionsResponse } from "../lib/types";
 import StatusBadge from "../components/StatusBadge";
 
 const JOB_POLL_INTERVAL_MS = 1000;
-const JOB_POLL_TIMEOUT_MS = 180000;
+const JOB_POLL_TIMEOUT_MS = 20 * 60 * 1000;
 
 export default function ImageDetailPage() {
   const { batchId, imageId } = useParams<{ batchId: string; imageId: string }>();
@@ -21,6 +29,9 @@ export default function ImageDetailPage() {
   const [editPrompt, setEditPrompt] = useState("");
   const [editVersionId, setEditVersionId] = useState<string | null>(null);
   const [historyVersionId, setHistoryVersionId] = useState<string>("");
+  const [segmentPrompt, setSegmentPrompt] = useState("");
+  const [segments, setSegments] = useState<SegmentsResponse | null>(null);
+  const [segmentsLoading, setSegmentsLoading] = useState(false);
 
   // 确保 batch 已加载（应对直接访问 URL 的情况）
   useEffect(() => {
@@ -62,6 +73,26 @@ export default function ImageDetailPage() {
   useEffect(() => {
     loadVersions();
   }, [loadVersions]);
+
+  const loadSegments = useCallback(async (userPrompt?: string) => {
+    if (!imageId) return;
+    setSegmentsLoading(true);
+    try {
+      const data = await getImageSegments(imageId, userPrompt);
+      setSegments(data);
+      if (data.user_prompt) {
+        setSegmentPrompt(data.user_prompt);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "加载分割结果失败");
+    } finally {
+      setSegmentsLoading(false);
+    }
+  }, [imageId]);
+
+  useEffect(() => {
+    void loadSegments();
+  }, [loadSegments]);
 
   const pollJob = async (jobId: string): Promise<JobRead> => {
     const maxAttempts = Math.ceil(JOB_POLL_TIMEOUT_MS / JOB_POLL_INTERVAL_MS);
@@ -111,6 +142,26 @@ export default function ImageDetailPage() {
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "语义编辑失败");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSegment = async () => {
+    const prompt = segmentPrompt.trim();
+    if (!imageId || !prompt) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const job = await segmentImage(imageId, { user_prompt: prompt });
+      setCurrentJob(job);
+      const result = await pollJob(job.id);
+      if (result.status === "failed") {
+        throw new Error(result.error || "SAM 3 分割失败");
+      }
+      await loadSegments(prompt);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "SAM 3 分割失败");
     } finally {
       setBusy(false);
     }
@@ -184,6 +235,24 @@ export default function ImageDetailPage() {
                 {busy ? "编辑中..." : "执行语义编辑"}
               </button>
             </div>
+
+            <div className="segment-control">
+              <h3>SAM 3 文本分割</h3>
+              <p>输入简短名词，SAM 3 会从原始图片中找出所有匹配目标。</p>
+              <input
+                type="text"
+                placeholder="例如：人物、花、鸟"
+                value={segmentPrompt}
+                onChange={(event) => setSegmentPrompt(event.target.value)}
+                disabled={busy}
+              />
+              <button
+                onClick={handleSegment}
+                disabled={busy || !segmentPrompt.trim()}
+              >
+                {busy && currentJob?.type === "sam_segment" ? "分割中..." : "执行分割"}
+              </button>
+            </div>
           </section>
 
           {currentJob && (
@@ -199,6 +268,45 @@ export default function ImageDetailPage() {
               </div>
             </section>
           )}
+
+          <section className="panel">
+            <h2>SAM 3 分割结果</h2>
+            {segmentsLoading ? (
+              <div className="empty">正在加载分割结果...</div>
+            ) : segments && segments.segments.length > 0 ? (
+              <>
+                <p>
+                  提示词「{segments.user_prompt}」，共 {segments.segments.length} 个目标。
+                  透明 PNG 可直接用于后续局部重绘或合成。
+                </p>
+                <div className="segment-grid">
+                  {segments.segments.map((segment) => (
+                    <article key={segment.id} className="segment-card">
+                      <div className="segment-preview">
+                        <img src={segment.crop_url} alt={`${segment.user_prompt}-${segment.region_index + 1}`} />
+                      </div>
+                      <div className="segment-meta">
+                        <strong>目标 {segment.region_index + 1}</strong>
+                        <span>置信度 {(segment.confidence * 100).toFixed(1)}%</span>
+                        <span>面积占比 {(segment.area_ratio * 100).toFixed(1)}%</span>
+                        <span>
+                          bbox: {segment.bbox_x}, {segment.bbox_y}, {segment.bbox_w} × {segment.bbox_h}
+                        </span>
+                      </div>
+                      <div className="segment-links">
+                        <a href={segment.crop_url} target="_blank" rel="noreferrer">打开透明子图</a>
+                        {segment.mask_url && (
+                          <a href={segment.mask_url} target="_blank" rel="noreferrer">打开 Mask</a>
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="empty">暂无分割结果。输入目标名称后执行 SAM 3 分割。</div>
+            )}
+          </section>
 
           <section className="panel">
             <h2>当前版本</h2>

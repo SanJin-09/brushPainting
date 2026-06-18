@@ -13,6 +13,7 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///./runtime/test.db")
 os.environ.setdefault("RUNTIME_ROOT", "./runtime/test_runtime")
 os.environ.setdefault("PUBLIC_MEDIA_BASE", "http://testserver/media")
 os.environ.setdefault("MODEL_BACKEND", "mock")
+os.environ.setdefault("SAM3_BACKEND", "mock")
 
 from services.api.app.db.database import SessionLocal, engine  # noqa: E402
 from services.api.app.models import Base  # noqa: E402
