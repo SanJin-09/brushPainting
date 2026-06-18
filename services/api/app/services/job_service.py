@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from services.api.app.core.config import get_settings
 from services.api.app.models.entities import ImageAsset, Job
-from services.api.app.models.enums import ImageStatus, JobStatus
+from services.api.app.models.enums import ImageStatus, JobStatus, JobType
 from services.api.app.services.errors import ConflictError, ServiceUnavailableError
 
 settings = get_settings()
@@ -44,13 +44,17 @@ def create_job(
     return job
 
 
-def dispatch_job(job_id: str) -> None:
+def dispatch_job(job_id: str, job_type: str) -> None:
     try:
         queue = Queue(settings.rq_queue_name, connection=Redis.from_url(settings.redis_url))
         if queue.count >= settings.rq_max_queued_jobs:
             raise ServiceUnavailableError("GPU 任务队列已满，请稍后重试")
+        if job_type == JobType.SAM_SEGMENT.value:
+            task_func = "services.worker.tasks.run_segmentation"
+        else:
+            task_func = "services.worker.tasks.run_generation"
         queue.enqueue(
-            "services.worker.tasks.run_generation",
+            task_func,
             job_id,
             job_id=job_id,
             job_timeout="4h",

@@ -6,8 +6,9 @@ from datetime import datetime, timezone
 from PIL import Image
 
 from model_runtime.generator import generate_image
+from model_runtime.sam_engine import segment_image
 from services.api.app.db.database import SessionLocal
-from services.api.app.models.entities import ImageAsset, Job, Version
+from services.api.app.models.entities import ImageAsset, Job, SegmentationResult, Version
 from services.api.app.models.enums import ImageStatus, JobStatus, JobType, VersionKind
 from services.api.app.services.storage import LocalStorage
 
@@ -90,6 +91,69 @@ def run_generation(job_id: str) -> None:
             job.status = JobStatus.FAILED.value
             job.error = str(exc)
             job.progress_message = "生成失败"
+            job.finished_at = _now()
+            image.status = ImageStatus.FAILED.value
+            db.commit()
+            raise
+
+
+def run_segmentation(job_id: str) -> None:
+    with SessionLocal() as db:
+        job = db.get(Job, job_id)
+        if not job or not job.image_id:
+            return
+        image = db.get(ImageAsset, job.image_id)
+        if not image:
+            return
+
+        payload = job.input_payload or {}
+        user_prompt = str(payload.get("user_prompt", ""))
+
+        try:
+            job.status = JobStatus.RUNNING.value
+            job.started_at = _now()
+            image.status = ImageStatus.RUNNING.value
+            _progress(db, job, 10, "正在加载 SAM 3 模型")
+
+            with Image.open(storage.url_to_path(image.original_url)) as source:
+                _progress(db, job, 20, f"正在按提示词「{user_prompt}」分割目标...")
+                segments = segment_image(source.convert("RGB"), user_prompt=user_prompt)
+
+            if not segments:
+                job.status = JobStatus.FAILED.value
+                job.error = f"未检测到与「{user_prompt}」匹配的目标"
+                job.progress_message = "分割失败：无匹配目标"
+                job.finished_at = _now()
+                image.status = ImageStatus.FAILED.value
+                db.commit()
+                return
+
+            _progress(db, job, 70, f"检测到 {len(segments)} 个目标，正在保存...")
+            for i, seg in enumerate(segments):
+                seg_id = str(uuid.uuid4())
+                crop_url = storage.save_segment(image.id, seg_id, seg.crop)
+                db.add(SegmentationResult(
+                    id=seg_id,
+                    source_image_id=image.id,
+                    user_prompt=user_prompt,
+                    region_index=i,
+                    confidence=seg.confidence,
+                    crop_url=crop_url,
+                    bbox_x=seg.bbox[0], bbox_y=seg.bbox[1],
+                    bbox_w=seg.bbox[2], bbox_h=seg.bbox[3],
+                    area_ratio=seg.area_ratio,
+                ))
+
+            image.status = ImageStatus.SEGMENTED.value
+            job.status = JobStatus.SUCCEEDED.value
+            job.progress = 100
+            job.progress_message = f"按「{user_prompt}」分割完成，共 {len(segments)} 个子图"
+            job.finished_at = _now()
+            db.commit()
+        except Exception as exc:
+            job.status = JobStatus.FAILED.value
+            job.error = str(exc)
+            job.progress_message = "分割失败"
             job.finished_at = _now()
             image.status = ImageStatus.FAILED.value
             db.commit()

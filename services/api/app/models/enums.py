@@ -7,7 +7,7 @@ class ImageStatus(str, Enum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
-
+    SEGMENTED = "segmented"
 
 class VersionKind(str, Enum):
     INITIAL = "initial"
@@ -19,6 +19,7 @@ class JobType(str, Enum):
     INITIAL = "initial"
     REGENERATE = "regenerate"
     SEMANTIC_EDIT = "semantic_edit"
+    SAM_SEGMENT = "sam_segment"
 
 
 class JobStatus(str, Enum):

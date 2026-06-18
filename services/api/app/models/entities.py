@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, text
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from services.api.app.models.enums import ImageStatus, JobStatus
@@ -106,3 +106,20 @@ class Job(Base):
     batch: Mapped[Optional[Batch]] = relationship(back_populates="jobs")
     image: Mapped[Optional[ImageAsset]] = relationship(back_populates="jobs")
     result_version: Mapped[Optional[Version]] = relationship(foreign_keys=[result_version_id])
+
+class SegmentationResult(Base):
+    __tablename__ = "segments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    source_image_id: Mapped[str] = mapped_column(ForeignKey("images.id", ondelete="CASCADE"), index=True)
+    user_prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    region_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    mask_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    crop_url: Mapped[str] = mapped_column(Text, nullable=False)
+    bbox_x: Mapped[int] = mapped_column(Integer, nullable=False)
+    bbox_y: Mapped[int] = mapped_column(Integer, nullable=False)
+    bbox_w: Mapped[int] = mapped_column(Integer, nullable=False)
+    bbox_h: Mapped[int] = mapped_column(Integer, nullable=False)
+    area_ratio: Mapped[float] = mapped_column(Float, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

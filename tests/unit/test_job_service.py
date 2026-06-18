@@ -41,4 +41,4 @@ def test_dispatch_rejects_full_queue(monkeypatch):
     monkeypatch.setattr(job_service.Redis, "from_url", lambda _url: object())
 
     with pytest.raises(ServiceUnavailableError, match="队列已满"):
-        job_service.dispatch_job("job")
+        job_service.dispatch_job("job", JobType.SAM_SEGMENT.value)

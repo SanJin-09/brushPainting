@@ -11,7 +11,6 @@ export default function NavBar() {
       </div>
       <div className="navbar-links">
         <Link to="/" className={path === "/" ? "active" : ""}>上传</Link>
-        <Link to="/reference-review" className={path === "/reference-review" ? "active" : ""}>人工筛图</Link>
       </div>
     </nav>
   );

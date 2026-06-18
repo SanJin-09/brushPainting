@@ -36,6 +36,13 @@ class Settings(BaseSettings):
     gongbi_lora_scale: float = Field(default=1.0, alias="GONGBI_LORA_SCALE")
     qwen_image_steps: int = Field(default=40, alias="QWEN_IMAGE_STEPS")
 
+    # SAM 3 
+    sam3_checkpoint_path: str = Field(default="/models/sam3/sam3.pt", alias="SAM3_CHECKPOINT_PATH")
+    sam3_device: str = Field(default="cuda", alias="SAM3_DEVICE")
+    sam3_score_threshold: float = Field(default=0.30, alias="SAM3_SCORE_THRESHOLD")
+    segment_max_results: int = Field(default=12, alias="SEGMENT_MAX_RESULTS")
+    segment_min_area_ratio: float = Field(default=0.015, alias="SEGMENT_MIN_AREA_RATIO")
+
     @property
     def runtime_root_path(self) -> Path:
         return Path(self.runtime_root).resolve()

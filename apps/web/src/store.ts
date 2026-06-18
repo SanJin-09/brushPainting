@@ -14,7 +14,7 @@ type AppState = {
   setError: (error: string | null) => void;
 };
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>()((set) => ({
   batch: null,
   selectedImage: null,
   busy: false,
