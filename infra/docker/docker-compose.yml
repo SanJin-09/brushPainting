@@ -2,8 +2,9 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports:
-      - "${REDIS_HOST_PORT:-6380}:6379"
+    expose:
+      - "6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD:-CHANGE_ME}
 
   api:
     image: brush-painting-api:offline
@@ -13,7 +14,7 @@ services:
     environment: &backend_environment
       APP_ENV: development
       DATABASE_URL: sqlite:////app/runtime/db.sqlite
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:-CHANGE_ME}@redis:6379/0
       RQ_QUEUE_NAME: gpu
       RQ_MAX_QUEUED_JOBS: "50"
       RUNTIME_ROOT: /app/runtime
@@ -22,6 +23,8 @@ services:
       MAX_UPLOAD_BYTES: "20971520"
       MAX_IMAGE_EDGE: "8192"
       THUMBNAIL_MAX_EDGE: "480"
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173}
+      # BRUSH_API_KEYS 不设置 = 认证关闭；生产环境请设置，例如: BRUSH_API_KEYS: ${BRUSH_API_KEYS}
       MODEL_BACKEND: mock
       QWEN_EDIT_MODEL_PATH: /models/qwen_image_edit_2511
       QWEN_IMAGE_COMPONENTS_PATH: /models/qwen_image
