@@ -29,7 +29,7 @@ echo "[Step 1/5] 安装 Python 依赖 …"
 pip install \
     --index-url https://download.pytorch.org/whl/cu126 \
     torch==2.7.0 torchvision==0.22.0 -q
-pip install -r "$ROOT/services/model_runtime/requirements.txt" -q
+pip install -r "$ROOT/services/model_runtime/requirements-sam3.txt" -q
 echo "  ✓ 完成"
 
 # ── Step 2: 检查仓库内置 sam3 包 ─────────────────────────────
@@ -47,8 +47,10 @@ echo ""
 echo "[Step 4/5] 加载 SAM3 模型 …"
 export SAM3_BACKEND=sam3
 export SAM3_PRELOAD=true
+export SAM3_MODEL_SOURCE=local
 export SAM3_CHECKPOINT_PATH="$CHECKPOINT"
 export SAM3_DEVICE=cuda
+export SAM3_AMP_DTYPE="${SAM3_AMP_DTYPE:-bfloat16}"
 export VERIFY_PROMPT
 
 cd "$ROOT/services/model_runtime"

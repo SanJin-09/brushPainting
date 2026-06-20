@@ -13,4 +13,3 @@ huggingface_hub>=0.28.1
 modelscope==1.37.1
 psutil>=5.9.8
 einops>=0.8.0
-git+https://github.com/modelscope/DiffSynth-Studio.git@6d103c0830ff51d34cd041783de4216decbb3a1d

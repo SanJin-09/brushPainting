@@ -39,8 +39,24 @@ class Settings(BaseSettings):
     # SAM 3
     sam3_backend: str = Field(default="mock", alias="SAM3_BACKEND")
     sam3_preload: bool = Field(default=False, alias="SAM3_PRELOAD")
+    sam3_model_source: str = Field(default="local", alias="SAM3_MODEL_SOURCE")
     sam3_checkpoint_path: str = Field(default="/models/sam3/sam3.pt", alias="SAM3_CHECKPOINT_PATH")
+    sam3_modelscope_model_id: str = Field(default="facebook/sam3", alias="SAM3_MODELSCOPE_MODEL_ID")
+    sam3_modelscope_revision: str = Field(default="master", alias="SAM3_MODELSCOPE_REVISION")
+    sam3_modelscope_local_dir: str = Field(
+        default="./runtime/models/sam3",
+        alias="SAM3_MODELSCOPE_LOCAL_DIR",
+    )
+    sam3_modelscope_checkpoint_filename: str = Field(
+        default="sam3.pt",
+        alias="SAM3_MODELSCOPE_CHECKPOINT_FILENAME",
+    )
+    sam3_modelscope_download_full: bool = Field(
+        default=False,
+        alias="SAM3_MODELSCOPE_DOWNLOAD_FULL",
+    )
     sam3_device: str = Field(default="cuda", alias="SAM3_DEVICE")
+    sam3_amp_dtype: str = Field(default="bfloat16", alias="SAM3_AMP_DTYPE")
     sam3_score_threshold: float = Field(default=0.30, alias="SAM3_SCORE_THRESHOLD")
     segment_max_results: int = Field(default=12, alias="SEGMENT_MAX_RESULTS")
     segment_min_area_ratio: float = Field(default=0.015, alias="SEGMENT_MIN_AREA_RATIO")
