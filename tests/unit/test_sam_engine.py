@@ -147,9 +147,27 @@ def test_resolve_sam3_checkpoint_prefers_existing_local_file(monkeypatch, tmp_pa
 
 
 def test_to_numpy_converts_bfloat16_to_float32():
-    import torch
+    class FakeBFloat16Tensor:
+        def __init__(self):
+            self.dtype = "torch.bfloat16"
+            self.converted_to_float = False
 
-    converted = sam_engine._to_numpy(torch.tensor([0.5], dtype=torch.bfloat16))
+        def detach(self):
+            return self
+
+        def float(self):
+            self.dtype = "torch.float32"
+            self.converted_to_float = True
+            return self
+
+        def cpu(self):
+            return self
+
+        def numpy(self):
+            assert self.converted_to_float
+            return np.array([0.5], dtype=np.float32)
+
+    converted = sam_engine._to_numpy(FakeBFloat16Tensor())
 
     assert converted.dtype == np.float32
     assert converted.tolist() == [0.5]
