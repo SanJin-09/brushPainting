@@ -99,3 +99,57 @@ def test_sam3_runtime_passes_checkpoint_and_threshold_by_keyword(monkeypatch, tm
     assert calls["processor"]["device"] == "cpu"
     assert calls["processor"]["confidence_threshold"] == 0.42
     sam_engine._sam3_runtime.cache_clear()
+
+
+def test_resolve_sam3_checkpoint_downloads_from_modelscope(monkeypatch, tmp_path):
+    calls = {}
+    downloaded_checkpoint = tmp_path / "modelscope" / "sam3.pt"
+    downloaded_checkpoint.parent.mkdir()
+    downloaded_checkpoint.write_bytes(b"checkpoint")
+
+    def fake_download(**kwargs):
+        calls.update(kwargs)
+        return downloaded_checkpoint
+
+    monkeypatch.setenv("SAM3_MODEL_SOURCE", "modelscope")
+    monkeypatch.setenv("SAM3_CHECKPOINT_PATH", str(tmp_path / "missing.pt"))
+    monkeypatch.setenv("SAM3_MODELSCOPE_MODEL_ID", "facebook/sam3")
+    monkeypatch.setenv("SAM3_MODELSCOPE_REVISION", "master")
+    monkeypatch.setenv("SAM3_MODELSCOPE_LOCAL_DIR", str(tmp_path / "modelscope"))
+    monkeypatch.setenv("SAM3_MODELSCOPE_CHECKPOINT_FILENAME", "sam3.pt")
+    monkeypatch.setenv("SAM3_MODELSCOPE_DOWNLOAD_FULL", "false")
+    monkeypatch.setattr(sam_engine, "download_sam3_snapshot", fake_download)
+
+    checkpoint = sam_engine._resolve_sam3_checkpoint()
+
+    assert checkpoint == str(downloaded_checkpoint)
+    assert calls == {
+        "model_id": "facebook/sam3",
+        "revision": "master",
+        "local_dir": str(tmp_path / "modelscope"),
+        "checkpoint_filename": "sam3.pt",
+        "full_snapshot": False,
+    }
+
+
+def test_resolve_sam3_checkpoint_prefers_existing_local_file(monkeypatch, tmp_path):
+    checkpoint = tmp_path / "sam3.pt"
+    checkpoint.write_bytes(b"checkpoint")
+    monkeypatch.setenv("SAM3_MODEL_SOURCE", "modelscope")
+    monkeypatch.setenv("SAM3_CHECKPOINT_PATH", str(checkpoint))
+    monkeypatch.setattr(
+        sam_engine,
+        "download_sam3_snapshot",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("不应触发下载")),
+    )
+
+    assert sam_engine._resolve_sam3_checkpoint() == str(checkpoint)
+
+
+def test_to_numpy_converts_bfloat16_to_float32():
+    import torch
+
+    converted = sam_engine._to_numpy(torch.tensor([0.5], dtype=torch.bfloat16))
+
+    assert converted.dtype == np.float32
+    assert converted.tolist() == [0.5]

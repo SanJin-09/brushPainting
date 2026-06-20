@@ -196,18 +196,53 @@ make worker
 | `user_prompt` | string | 用户自然语言编辑指令    |
 | `seed`        | number | 随机种子，用于结果复现   |
 
+## 通过 ModelScope 载入 SAM 3
+
+项目已接入 ModelScope SDK。首次 SAM 3 分割时，如果 `SAM3_CHECKPOINT_PATH` 指向的本地权重不存在，并且
+`SAM3_MODEL_SOURCE=modelscope`，Worker 会通过 `snapshot_download()` 下载模型，再使用仓库内置的 SAM 3
+推理代码加载 `sam3.pt`。
+
+安装依赖并预先下载项目所需权重：
+
+```bash
+pip install modelscope
+python scripts/download_sam3_modelscope.py
+```
+
+默认仅下载 `sam3.pt`。如需下载 ModelScope 上的完整模型仓库：
+
+```bash
+python scripts/download_sam3_modelscope.py --full
+```
+
+运行真实分割时使用：
+
+```text
+SAM3_BACKEND=sam3
+SAM3_MODEL_SOURCE=modelscope
+SAM3_CHECKPOINT_PATH=./runtime/models/sam3/sam3.pt
+SAM3_MODELSCOPE_MODEL_ID=facebook/sam3
+SAM3_MODELSCOPE_REVISION=master
+SAM3_MODELSCOPE_LOCAL_DIR=./runtime/models/sam3
+SAM3_DEVICE=cuda
+SAM3_AMP_DTYPE=bfloat16
+```
+
+已存在的 `SAM3_CHECKPOINT_PATH` 始终优先，因此联网环境可自动下载，离线环境也可直接挂载预下载权重。
+
 ## 正式离线部署
 
 ### 1. 在联网机器准备模型
 
-在可联网机器安装 `hf` CLI 后执行：
+在可联网机器安装 `hf` CLI 和 ModelScope SDK 后执行：
 
 ```bash
+pip install modelscope
 bash scripts/prepare_offline_models.sh runtime/models
 ```
 
-`facebook/sam3` 是 gated 模型。下载前需在 Hugging Face 模型页接受许可，并执行 `hf auth login`。可通过
-`SAM3_REVISION` 固定要下载的模型 revision。
+Qwen 和 LoRA 仍通过 `hf` CLI 下载；SAM 3 改由 ModelScope SDK 下载。可通过 `SAM3_REVISION` 固定
+ModelScope revision，默认值为 `master`。
 
 然后将 `runtime/models` 随部署包复制到正式服务器。
 
@@ -224,6 +259,7 @@ GONGBI_LORA_PATH=/models/lora/qwen_image_edit_2511_gongbi_lora_v1.safetensors
 GONGBI_LORA_SCALE=1.0
 SAM3_BACKEND=sam3
 SAM3_PRELOAD=false
+SAM3_MODEL_SOURCE=local
 SAM3_CHECKPOINT_PATH=/models/sam3/sam3.pt
 SAM3_DEVICE=cuda
 ```

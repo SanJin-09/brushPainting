@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ROOT_DIR="${1:-runtime/models}"
-SAM3_REVISION="${SAM3_REVISION:-main}"
+SAM3_REVISION="${SAM3_REVISION:-master}"
 mkdir -p "$ROOT_DIR/lora" "$ROOT_DIR/sam3"
 
 command -v hf >/dev/null 2>&1 || {
@@ -31,10 +32,8 @@ hf download SanJin09/qwen-image-edit-gongbi-lora-v1 \
   --include qwen_image_edit_2511_gongbi_lora_v1.safetensors \
   --local-dir "$ROOT_DIR/lora"
 
-echo "准备下载 gated 模型 facebook/sam3。请先在模型页接受许可并执行 hf auth login。"
-hf download facebook/sam3 \
+python "$PROJECT_ROOT/scripts/download_sam3_modelscope.py" \
   --revision "$SAM3_REVISION" \
-  --include sam3.pt \
   --local-dir "$ROOT_DIR/sam3"
 
 echo "模型已准备到 $ROOT_DIR"

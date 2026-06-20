@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import gc
 import os
+from contextlib import nullcontext
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
+
+from model_runtime.modelscope_loader import download_sam3_snapshot
 
 
 @dataclass
@@ -89,14 +92,52 @@ def _require_path(path: str, label: str) -> str:
     return str(resolved)
 
 
+def _resolve_sam3_checkpoint() -> str:
+    configured_path = os.getenv("SAM3_CHECKPOINT_PATH", "").strip()
+    if configured_path and Path(configured_path).is_file():
+        return str(Path(configured_path))
+
+    source = os.getenv("SAM3_MODEL_SOURCE", "local").strip().lower()
+    if source == "local":
+        if not configured_path:
+            raise RuntimeError("SAM3_MODEL_SOURCE=local 时必须设置 SAM3_CHECKPOINT_PATH")
+        return _require_path(configured_path, "SAM 3 权重")
+    if source != "modelscope":
+        raise RuntimeError(f"不支持的 SAM3_MODEL_SOURCE: {source}")
+
+    checkpoint = download_sam3_snapshot(
+        model_id=os.getenv("SAM3_MODELSCOPE_MODEL_ID", "facebook/sam3").strip(),
+        revision=os.getenv("SAM3_MODELSCOPE_REVISION", "master").strip(),
+        local_dir=os.getenv(
+            "SAM3_MODELSCOPE_LOCAL_DIR",
+            "./runtime/models/sam3",
+        ).strip(),
+        checkpoint_filename=os.getenv(
+            "SAM3_MODELSCOPE_CHECKPOINT_FILENAME",
+            "sam3.pt",
+        ).strip(),
+        full_snapshot=os.getenv(
+            "SAM3_MODELSCOPE_DOWNLOAD_FULL",
+            "false",
+        ).strip().lower()
+        in {"1", "true", "yes", "on"},
+    )
+    return str(checkpoint)
+
+
 @lru_cache(maxsize=1)
 def _sam3_runtime():
     import torch
     from sam3.model_builder import build_sam3_image_model
     from sam3.model.sam3_image_processor import Sam3Processor
 
-    checkpoint = _require_path(os.environ["SAM3_CHECKPOINT_PATH"], "SAM 3 权重")
+    checkpoint = _resolve_sam3_checkpoint()
     device = os.getenv("SAM3_DEVICE", "cuda").strip().lower()
+    amp_dtype = os.getenv("SAM3_AMP_DTYPE", "bfloat16").strip().lower()
+    if amp_dtype not in {"bfloat16", "float16", "float32"}:
+        raise RuntimeError(
+            f"不支持的 SAM3_AMP_DTYPE: {amp_dtype}，可选 bfloat16 / float16 / float32"
+        )
     if device.startswith("cuda") and not torch.cuda.is_available():
         raise RuntimeError("SAM 3 配置为 CUDA 推理，但当前没有可用的 NVIDIA CUDA GPU")
 
@@ -106,6 +147,11 @@ def _sam3_runtime():
         eval_mode=True,
         load_from_HF=False,
     )
+    if (not device.startswith("cuda") or amp_dtype == "float32") and hasattr(
+        model,
+        "float",
+    ):
+        model.float()
 
     return Sam3Processor(
         model,
@@ -138,11 +184,34 @@ def release_runtime() -> None:
 def _to_numpy(value) -> np.ndarray:
     if hasattr(value, "detach"):
         value = value.detach()
+    if str(getattr(value, "dtype", "")) == "torch.bfloat16":
+        value = value.float()
     if hasattr(value, "cpu"):
         value = value.cpu()
     if hasattr(value, "numpy"):
         value = value.numpy()
     return np.asarray(value)
+
+
+def _sam3_inference_context(processor):
+    device = str(getattr(processor, "device", "cpu")).lower()
+    if not device.startswith("cuda"):
+        return nullcontext()
+
+    import torch
+
+    dtype_name = os.getenv("SAM3_AMP_DTYPE", "bfloat16").strip().lower()
+    dtype_by_name = {
+        "bfloat16": torch.bfloat16,
+        "float16": torch.float16,
+    }
+    if dtype_name == "float32":
+        return nullcontext()
+    if dtype_name not in dtype_by_name:
+        raise RuntimeError(
+            f"不支持的 SAM3_AMP_DTYPE: {dtype_name}，可选 bfloat16 / float16 / float32"
+        )
+    return torch.autocast(device_type="cuda", dtype=dtype_by_name[dtype_name])
 
 
 def segment_image(source: Image.Image, user_prompt: str) -> list[SegmentData]:
@@ -162,11 +231,12 @@ def segment_image(source: Image.Image, user_prompt: str) -> list[SegmentData]:
     min_area_ratio = float(os.getenv("SEGMENT_MIN_AREA_RATIO", "0.015"))
     max_results = int(os.getenv("SEGMENT_MAX_RESULTS", "12"))
 
-    state = processor.set_image(source.convert("RGB"))
-    output = processor.set_text_prompt(
-        prompt=user_prompt.strip(),
-        state=state,
-    )
+    with _sam3_inference_context(processor):
+        state = processor.set_image(source.convert("RGB"))
+        output = processor.set_text_prompt(
+            prompt=user_prompt.strip(),
+            state=state,
+        )
     masks = _to_numpy(output["masks"])
     scores = _to_numpy(output["scores"]).reshape(-1)
     if masks.ndim == 4 and masks.shape[1] == 1:
