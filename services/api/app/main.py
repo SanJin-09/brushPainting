@@ -1,11 +1,12 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from services.api.app.api.routes import router
 from services.api.app.core.config import get_settings
+from services.api.app.core.security import verify_api_key
 from services.api.app.db.database import engine
 from services.api.app.models import Base
 from services.api.app.services.storage import LocalStorage
@@ -20,14 +21,25 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="Gongbi Repaint API", version="0.2.0", lifespan=lifespan)
+app = FastAPI(
+    title="Gongbi Repaint API",
+    version="0.2.0",
+    lifespan=lifespan,
+    dependencies=[Depends(verify_api_key)],
+)
+
+origins = [
+    o.strip()
+    for o in settings.allowed_origins.split(",")
+    if o.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "X-API-Key"],
 )
 
 app.include_router(router)

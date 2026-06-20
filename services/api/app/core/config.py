@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     gongbi_lora_scale: float = Field(default=1.0, alias="GONGBI_LORA_SCALE")
     qwen_image_steps: int = Field(default=40, alias="QWEN_IMAGE_STEPS")
 
+    allowed_origins: str = Field(default="http://localhost:5173", alias="ALLOWED_ORIGINS")
+
     # SAM 3
     sam3_backend: str = Field(default="mock", alias="SAM3_BACKEND")
     sam3_preload: bool = Field(default=False, alias="SAM3_PRELOAD")
