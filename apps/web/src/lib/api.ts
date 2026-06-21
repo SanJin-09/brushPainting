@@ -14,10 +14,87 @@ import type {
 } from "./types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api").replace(/\/+$/, "");
+const SERVICE_BASE = API_BASE.endsWith("/api") ? API_BASE.slice(0, -4) : "";
+const AUTH_REQUIRED_EVENT = "brush-auth-required";
+const CSRF_STORAGE_KEY = "brush-csrf-token";
+
+export type AuthStatus = {
+  auth_required: boolean;
+  authenticated: boolean;
+  csrf_token: string | null;
+};
+
+let csrfToken = sessionStorage.getItem(CSRF_STORAGE_KEY);
 
 const api = axios.create({
-  baseURL: API_BASE
+  baseURL: API_BASE,
+  withCredentials: true,
 });
+
+const authApi = axios.create({
+  baseURL: SERVICE_BASE,
+  withCredentials: true,
+});
+
+function updateCsrfToken(token: string | null) {
+  csrfToken = token;
+  if (token) {
+    sessionStorage.setItem(CSRF_STORAGE_KEY, token);
+  } else {
+    sessionStorage.removeItem(CSRF_STORAGE_KEY);
+  }
+}
+
+api.interceptors.request.use((config) => {
+  const method = config.method?.toUpperCase() ?? "GET";
+  if (csrfToken && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+    config.headers["X-CSRF-Token"] = csrfToken;
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      updateCsrfToken(null);
+      window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
+    }
+    return Promise.reject(error);
+  },
+);
+
+export function onAuthenticationRequired(listener: () => void) {
+  window.addEventListener(AUTH_REQUIRED_EVENT, listener);
+  return () => window.removeEventListener(AUTH_REQUIRED_EVENT, listener);
+}
+
+export async function getAuthStatus() {
+  const { data } = await authApi.get<AuthStatus>("/auth/status");
+  updateCsrfToken(data.csrf_token);
+  return data;
+}
+
+export async function createAuthSession(apiKey: string) {
+  const { data } = await authApi.post<AuthStatus>(
+    "/auth/session",
+    undefined,
+    { headers: { "X-API-Key": apiKey } },
+  );
+  updateCsrfToken(data.csrf_token);
+  return data;
+}
+
+export async function deleteAuthSession() {
+  try {
+    await authApi.delete(
+      "/auth/session",
+      { headers: csrfToken ? { "X-CSRF-Token": csrfToken } : undefined },
+    );
+  } finally {
+    updateCsrfToken(null);
+  }
+}
 
 //主流程接口
 

@@ -1,4 +1,5 @@
 import pytest
+from rq.serializers import JSONSerializer
 
 import services.api.app.services.job_service as job_service
 from services.api.app.models.entities import Batch, ImageAsset
@@ -31,14 +32,18 @@ def test_database_rejects_two_active_jobs_for_same_image(db_session):
 
 
 def test_dispatch_rejects_full_queue(monkeypatch):
+    captured = {}
+
     class FullQueue:
         count = 50
 
-        def __init__(self, *_args, **_kwargs):
-            pass
+        def __init__(self, *_args, **kwargs):
+            captured.update(kwargs)
 
     monkeypatch.setattr(job_service, "Queue", FullQueue)
-    monkeypatch.setattr(job_service.Redis, "from_url", lambda _url: object())
+    monkeypatch.setattr(job_service, "create_redis_connection", lambda _settings: object())
 
     with pytest.raises(ServiceUnavailableError, match="队列已满"):
         job_service.dispatch_job("job", JobType.SAM_SEGMENT.value)
+
+    assert isinstance(captured["serializer"], JSONSerializer)

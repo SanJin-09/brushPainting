@@ -141,8 +141,13 @@ sequenceDiagram
 
 ```bash
 cp .env.example .env
+# 编辑 .env，为 REDIS_PASSWORD 填入至少 32 位随机值：
+openssl rand -hex 32
 docker compose -f infra/docker/docker-compose.yml up --build
 ```
+
+默认只在宿主机 `127.0.0.1` 发布 Web、API 和 Redis 端口。Redis 即使仅供本机开发访问也必须使用密码，
+RQ Queue 与 Worker 统一使用 JSON serializer，不接受 Pickle 任务载荷。
 
 ### 本地开发启动
 
@@ -158,6 +163,54 @@ make worker
 
 > [!TIP]
 > Mock 模式适合验证接口、任务流、数据库写入、版本记录和 ZIP 导出流程；正式图像质量验证需要切换到 `diffsynth_qwen` 后端。
+
+## 安全访问模式
+
+项目提供两种明确的 API 发布模式：
+
+### 单机本地模式
+
+默认配置为：
+
+```text
+API_PUBLISH_HOST=127.0.0.1
+API_AUTH_MODE=disabled
+```
+
+此模式仅允许宿主机访问，不要求 API Key。`start_host.sh` 和 Docker Compose 都不会默认监听所有网卡。
+
+### 网络发布模式
+
+只要 `API_PUBLISH_HOST` 不是回环地址，API 就会在启动时强制要求 `API_AUTH_MODE=api_key`。生产部署至少需要：
+
+```text
+APP_ENV=production
+API_PUBLISH_HOST=0.0.0.0
+WEB_PUBLISH_HOST=0.0.0.0
+API_AUTH_MODE=api_key
+BRUSH_API_KEYS=<至少 32 位随机值，可用逗号配置轮换期内的多个 Key>
+API_SESSION_SECRET=<另一个至少 32 位随机值>
+API_SESSION_COOKIE_SECURE=true
+API_DOCS_ENABLED=false
+ALLOWED_ORIGINS=https://paint.example.com
+ALLOWED_HOSTS=paint.example.com,api.example.com
+VITE_API_BASE=https://api.example.com/api
+PUBLIC_MEDIA_BASE=https://api.example.com/media
+```
+
+网络发布必须由 HTTPS 反向代理终止 TLS。Web 前端使用 API Key 建立短期 HttpOnly Cookie 会话，并对写请求增加
+CSRF Token；`/api/*` 与 `/media/*` 使用同一认证边界。API Key 仅保存在登录表单内存中，不写入
+`localStorage` 或打包进前端产物。
+
+以下安全配置会导致服务拒绝启动：
+
+* 非回环地址发布但认证关闭；
+* 生产环境关闭认证或使用非 Secure Cookie；
+* 生产环境开放 API 文档或配置非 HTTPS 的 CORS 来源；
+* API Key、会话密钥或 Redis 密码少于 32 个字符或明显缺乏随机性；
+* 使用 `CHANGE_ME` 等默认占位值；
+* Redis 密码直接写入 `REDIS_URL`；
+* CORS 或 Host 白名单使用通配符。
 
 ## 公共接口
 
@@ -176,6 +229,10 @@ make worker
 | `GET`  | `/api/segments/{segment_id}/image`  | 获取透明背景子图 |
 | `GET`  | `/api/segments/{segment_id}/mask`   | 获取全尺寸灰度 Mask |
 | `GET`  | `/media/{path}`                     | 访问上传、输出、缩略图或导出文件 |
+| `GET`  | `/auth/status`                      | 查询浏览器会话状态 |
+| `POST` | `/auth/session`                     | 使用 `X-API-Key` 建立浏览器会话 |
+| `DELETE` | `/auth/session`                   | 注销当前浏览器会话 |
+| `GET`  | `/healthz`                          | 无认证存活检查 |
 
 
 ## 语义编辑请求示例
