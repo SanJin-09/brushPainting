@@ -28,4 +28,4 @@ COPY . /app
 
 ENV PYTHONPATH=/app
 
-CMD ["uvicorn", "services.api.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "exec uvicorn services.api.app.main:app --host \"${API_LISTEN_HOST:-127.0.0.1}\" --port \"${APP_PORT:-8000}\""]

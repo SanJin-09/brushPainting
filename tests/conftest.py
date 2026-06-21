@@ -14,6 +14,9 @@ os.environ.setdefault("RUNTIME_ROOT", "./runtime/test_runtime")
 os.environ.setdefault("PUBLIC_MEDIA_BASE", "http://testserver/media")
 os.environ.setdefault("MODEL_BACKEND", "mock")
 os.environ.setdefault("SAM3_BACKEND", "mock")
+os.environ.setdefault("API_PUBLISH_HOST", "127.0.0.1")
+os.environ.setdefault("API_AUTH_MODE", "disabled")
+os.environ.setdefault("ALLOWED_HOSTS", "testserver,localhost,127.0.0.1")
 
 from services.api.app.db.database import SessionLocal, engine  # noqa: E402
 from services.api.app.models import Base  # noqa: E402

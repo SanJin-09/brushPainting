@@ -3,13 +3,13 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from redis import Redis
 from rq import Queue
 from rq.serializers import JSONSerializer
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from services.api.app.core.config import get_settings
+from services.api.app.core.redis_client import create_redis_connection
 from services.api.app.models.entities import ImageAsset, Job
 from services.api.app.models.enums import ImageStatus, JobStatus, JobType
 from services.api.app.services.errors import ConflictError, ServiceUnavailableError
@@ -47,7 +47,11 @@ def create_job(
 
 def dispatch_job(job_id: str, job_type: str) -> None:
     try:
-        queue = Queue(settings.rq_queue_name, connection=Redis.from_url(settings.redis_url), serializer=JSONSerializer())
+        queue = Queue(
+            settings.rq_queue_name,
+            connection=create_redis_connection(settings),
+            serializer=JSONSerializer(),
+        )
         if queue.count >= settings.rq_max_queued_jobs:
             raise ServiceUnavailableError("GPU 任务队列已满，请稍后重试")
         if job_type == JobType.SAM_SEGMENT.value:

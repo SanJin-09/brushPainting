@@ -762,7 +762,83 @@ button:disabled {
   color: #b31212;
 }
 
-/* ===== 14. 响应式 ===== */
+/* ===== 14. API 安全会话 ===== */
+
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top, rgba(207, 166, 113, 0.24), transparent 42%),
+    #f7f1e6;
+}
+
+.auth-card {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 14px;
+  padding: 30px;
+  border: 1px solid rgba(176, 135, 79, 0.34);
+  border-radius: 18px;
+  background: rgba(255, 252, 245, 0.96);
+  box-shadow: 0 18px 48px rgba(76, 47, 15, 0.14);
+}
+
+.auth-card h1,
+.auth-card p {
+  margin: 0;
+}
+
+.auth-card p {
+  color: #6c573b;
+  line-height: 1.65;
+}
+
+.auth-card label {
+  color: #4c2f0f;
+  font-weight: 600;
+}
+
+.auth-card input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  border: 1px solid #cdb58f;
+  border-radius: 10px;
+  background: #fffdf8;
+  color: #3f2b14;
+}
+
+.auth-badge {
+  justify-self: start;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #efe2ca;
+  color: #765429;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.auth-session-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 6px 20px;
+  background: #3f2b14;
+  color: #f8edda;
+  font-size: 12px;
+}
+
+.auth-session-bar button {
+  padding: 4px 10px;
+  border-color: rgba(255, 255, 255, 0.32);
+  background: transparent;
+  color: #fff8eb;
+}
+
+/* ===== 15. 响应式 ===== */
 
 @media (max-width: 960px) {
 }

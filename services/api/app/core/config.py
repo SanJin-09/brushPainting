@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,8 +10,17 @@ class Settings(BaseSettings):
 
     app_env: str = Field(default="development", alias="APP_ENV")
     app_port: int = Field(default=8000, alias="APP_PORT")
+    api_publish_host: str = Field(default="127.0.0.1", alias="API_PUBLISH_HOST")
+    api_auth_mode: str = Field(default="disabled", alias="API_AUTH_MODE")
+    brush_api_keys: SecretStr = Field(default=SecretStr(""), alias="BRUSH_API_KEYS")
+    api_session_secret: SecretStr = Field(default=SecretStr(""), alias="API_SESSION_SECRET")
+    api_session_ttl_seconds: int = Field(default=12 * 60 * 60, alias="API_SESSION_TTL_SECONDS")
+    api_session_cookie_name: str = Field(default="brush_session", alias="API_SESSION_COOKIE_NAME")
+    api_session_cookie_secure: bool = Field(default=False, alias="API_SESSION_COOKIE_SECURE")
+    api_docs_enabled: bool = Field(default=True, alias="API_DOCS_ENABLED")
     database_url: str = Field(default="sqlite:///./runtime/db.sqlite", alias="DATABASE_URL")
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    redis_password: SecretStr = Field(default=SecretStr(""), alias="REDIS_PASSWORD")
     rq_queue_name: str = Field(default="gpu", alias="RQ_QUEUE_NAME")
     rq_max_queued_jobs: int = Field(default=50, alias="RQ_MAX_QUEUED_JOBS")
 
@@ -36,7 +45,14 @@ class Settings(BaseSettings):
     gongbi_lora_scale: float = Field(default=1.0, alias="GONGBI_LORA_SCALE")
     qwen_image_steps: int = Field(default=40, alias="QWEN_IMAGE_STEPS")
 
-    allowed_origins: str = Field(default="http://localhost:5173", alias="ALLOWED_ORIGINS")
+    allowed_origins: str = Field(
+        default="http://localhost:5173,http://127.0.0.1:5173",
+        alias="ALLOWED_ORIGINS",
+    )
+    allowed_hosts: str = Field(
+        default="localhost,127.0.0.1,::1,testserver",
+        alias="ALLOWED_HOSTS",
+    )
 
     # SAM 3
     sam3_backend: str = Field(default="mock", alias="SAM3_BACKEND")
@@ -70,6 +86,19 @@ class Settings(BaseSettings):
     @property
     def reference_scrape_root_path(self) -> Path:
         return Path(self.reference_scrape_root).resolve()
+
+    @property
+    def api_keys(self) -> tuple[str, ...]:
+        raw = self.brush_api_keys.get_secret_value()
+        return tuple(key.strip() for key in raw.split(",") if key.strip())
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.allowed_origins.split(",") if origin.strip()]
+
+    @property
+    def trusted_hosts(self) -> list[str]:
+        return [host.strip() for host in self.allowed_hosts.split(",") if host.strip()]
 
 
 @lru_cache(maxsize=1)
