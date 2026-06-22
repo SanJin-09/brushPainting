@@ -61,7 +61,7 @@ def test_redis_password_is_passed_separately_from_url(monkeypatch):
 def test_compose_does_not_publish_redis_beyond_loopback():
     repository_root = Path(__file__).resolve().parents[2]
     compose_path = repository_root / "infra" / "docker" / "docker-compose.yml"
-    compose_text = compose_path.read_text()
+    compose_text = compose_path.read_text(encoding="utf-8")
     compose = yaml.safe_load(compose_text)
 
     assert "CHANGE_ME" not in compose_text
