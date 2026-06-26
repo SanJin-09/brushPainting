@@ -1,8 +1,6 @@
-# Gongbi Batch Repaint
-
 <div align="center">
 
-<h3>单机 GPU 工笔画批处理</h3>
+<h1>Gongbi Studio</h1>
 
 <p>
   支持多图上传、批量初始生成、重生成、自然语言语义编辑、历史版本管理与 ZIP 导出。
